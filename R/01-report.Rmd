@@ -1,0 +1,254 @@
+---
+title: ""
+author: "Tony"
+date: "May 9, 2018"
+output:
+  html_document:
+    toc: true
+---
+
+```{r setup, include = FALSE}
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+knitr::opts_chunk$set(
+  # echo = TRUE,
+  echo = FALSE,
+  cache = TRUE,
+  # include = FALSE,
+  fig.align = "center",
+  # s = "asis",
+  fig.width = 7,
+  fig.height = 7,
+  # out.width = 7,
+  # out.height = 7,
+  warning = FALSE,
+  message = FALSE
+)
+```
+
+```{r params, include = FALSE}
+params <-
+  list()
+```
+
+
+
+```{r scrape_tea}
+
+
+urls_tea <-
+  "https://tea.texas.gov/acctres/sat_act_index.html" %>%
+  xml2::read_html() %>%
+  rvest::html_nodes(xpath = "//tr //td //a") %>%
+  rvest::html_attr("href") %>% 
+  str_subset("^\\/acctres\\/[:alpha:]{3}_[Cc]ampus_[Dd]ata")
+urls_tea
+
+```
+
+```{r download}
+create_path_dl_tea <-
+  function(url_suffix = NULL, dir = "data-raw", ext = "csv") {
+    url_suffix %>%
+      stringr::str_replace("(\\/acctres\\/)(.*)(\\/)", "\\2") %>%
+      file.path(dir, paste0(., ".", ext))
+  }
+
+# NOTE(s):
+# + `urls_tea_dl` is actually the same as `url_tea` because `purrr::walk()` returns its first argument.
+# + `mode = "wb"` is important! Otherwise, the downloaded files have empty lines every other line
+# (due to the way that CR and LFs are handled.
+urls_tea_dl <-
+  urls_tea %>%
+  walk(
+    ~download.file(
+      url = paste0("https://tea.texas.gov/", .x),
+      destfile = create_path_dl_tea(url_suffix = .x),
+      mode = "wb"
+    )
+  )
+```
+
+```{r clean}
+import_path_tea <-
+  function(path = NULL, 
+           test = c("SAT", "ACT"), 
+           cols_base = c("campname", "cntyname", "regnname")) {
+    
+    match.arg(test)
+    ret <-
+      path %>%
+      readr::read_csv() %>% 
+      rename_all(funs(tolower)) %>%
+      filter(group == "All Students")
+
+    if(test == "SAT") {
+      cols_extra <- c("math", "reading", "writing", "total")
+    } else if (test == "ACT") {
+      cols_extra <- c("math", "reading", "english", "science", "compos")
+    }
+    cols <- intersect(names(ret), c(cols_base, cols_extra))
+    ret <- ret %>% select(one_of(cols))
+    if(test == "ACT" & ("compos" %in% names(ret))) {
+      ret <-
+        ret %>%
+        rename(total = compos)
+    }
+    ret
+  }
+schools_tea_raw <-
+  urls_tea %>%
+  # .[1:13] %>%
+  # .[1] %>%
+  # .[14:15] %>%
+  create_path_dl_tea() %>%
+  tibble(path = .) %>%
+  mutate(test = toupper(stringr::str_extract(path, "([Ss][Aa][Tt])|([Aa][Cc][Tt])")),
+         year = stringr::str_extract(path, "[:digit:]+")) %>%
+  mutate(contents = purrr::map2(path, test, ~import_path_tea(.x, .y))) %>%
+  tidyr::unnest() %>%
+  select(-path) %>%
+  select(-total, everything(), total) %>%
+  rename(school = campname, county = cntyname, city = regnname) %>%
+  mutate_if(is.character, funs(stringr::str_replace_all(., "=|\"", "")))
+schools_tea_raw
+```
+
+```{r schools_tea_raw_debug, include = FALSE}
+# Debugging...
+schools_tea_raw
+schools_tea_raw %>%
+  count(test, year, is.na(school), sort = TRUE)
+```
+
+```{r schools_tea_raw_export, include = FALSE}
+teproj::export_ext_csv(
+  schools_tea_raw,
+  export = config$export_data
+  dir = config$dir_data
+)
+```
+
+```{r schools_tea_raw_import, include = FALSE}
+schools_tea_raw <-
+  teproj::import_ext_csv(
+    schools_tea_raw,
+    dir = config$dir_data
+  )
+```
+
+```{r schools_tea}
+schools_tea <-
+  schools_tea_raw %>%
+  clean_county_col_at() %>%
+  clean_city_col_at() %>%
+  clean_school_col_at() %>%
+  arrange(test, year, school)
+schools_tea
+```
+
+```{r schools_tea_export, include = FALSE}
+teproj::export_ext_csv(
+  schools_tea
+  path = config$path_schools_tea,
+  export = config$export_data
+)
+```
+
+```{r schools_tea_eda}
+schools_tea %>%
+  # filter(test == "SAT") %>%
+  select(test, year, school, total) %>%
+  distinct(test, year, school, .keep_all = TRUE) %>%
+  # group_by(test, school) %>%
+  filter(str_detect(school, "CLEMENS|STEELE II")) %>%
+  spread(year, total)
+
+schools_tea_cors_byyear <-
+  schools_tea %>%
+  # filter(test == "SAT") %>%
+  distinct(test, year, school, .keep_all = TRUE) %>%
+  filter(!is.na(total)) %>%
+  tidyr::unite(test_school, test, school) %>%
+  widyr::pairwise_cor(
+    # feature = school,
+    feature = test_school,
+    item = year,
+    value = total
+  )
+
+schools_tea_cors_byyear %>%
+  ggplot(aes(x = item1, y = item2, fill = correlation)) +
+  geom_tile() +
+  geom_text(aes(label = round(correlation, 2))) +
+  # scale_fill_gradient2(low = "red", high = "cyan", mid = "white", midpoint = 0) +
+  teplot::theme_te()
+
+schools_tea_join <-
+  schools_tea %>%
+  join_fuzzily(
+    schools_distinct,
+    how = "left",
+    cols_join = "school",
+    suffix_x = "_sat",
+    suffix_y = ""
+  )
+schools_tea_join
+
+# Alternatively...
+schools_tea %>%
+  join_fuzzily(
+    schools_distinct,
+    how = "full",
+    max_dist = 0,
+    cols_join = c("school"),
+    suffix_x = "_sat",
+    suffix_y = ""
+  ) %>%
+  tetidy::summarise_join_stats(school, school_sat)
+
+schools_tea %>%
+  unite(school_city, school, city, remove = FALSE) %>%
+  join_fuzzily(
+    schools_distinct %>%
+      unite(school_city, school, city, remove = FALSE),
+    how = "full",
+    cols_join = c("school_city"),
+    suffix_x = "_sat",
+    suffix_y = ""
+  ) %>%
+  tetidy::summarise_join_stats(school_city, school_city_sat)
+
+schools_stats_2015 <-
+  schools_uil %>%
+  filter(year == 2015) %>%
+  add_schools_stats_cols_by_at(rank_all = TRUE) %>%
+  select(matches("school|city|_rnk$"))
+
+school_sat_join_prnks <-
+  schools_tea %>%
+  select(school, city, math, total) %>%
+  mutate_at(vars(math, total), funs(rnk = row_number(desc(.)))) %>%
+  select(matches("school|city|_rnk$")) %>%
+  join_fuzzily(
+    schools_uil %>%
+      filter(year == 2015) %>%
+      add_schools_stats_cols_by_at(rank_all = TRUE) %>%
+      select(matches("school|city|_rnk$")),
+    how = "inner", cols_join = c("school"), suffix_x = "_sat", suffix_y = ""
+  ) %>%
+  mutate_if(is.numeric, funs(prnk = percent_rank(.))) %>%
+  rename_at(vars(ends_with("_rnk_prnk")), funs(str_replace(., "_rnk_prnk", "_prnk"))) %>%
+  select(matches("school|city|_prnk$"))
+school_sat_join_prnks %>%
+  select_if(is.numeric) %>%
+  corrr::correlate()
+
+schools_tea_join %>%
+  select(school, city, math, total) %>%
+  inner_join(schools_stats_2015, by = c("school", "city")) %>%
+  # filter(!is.na(school)) %>%
+  select_if(is.numeric) %>%
+  corrr::correlate()
+```
+
+
