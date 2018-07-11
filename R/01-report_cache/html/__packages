@@ -1,0 +1,15 @@
+base
+devtools
+testthat
+tidyverse
+ggplot2
+tibble
+tidyr
+readr
+purrr
+dplyr
+stringr
+forcats
+rlang
+teplot
+bindrcpp

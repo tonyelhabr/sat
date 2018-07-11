@@ -1,7 +1,7 @@
 ---
 title: ""
 author: "Tony"
-date: "May 9, 2018"
+date: "July 11, 2018"
 output:
   html_document:
     toc: true
@@ -10,12 +10,11 @@ output:
 ```{r setup, include = FALSE}
 knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
 knitr::opts_chunk$set(
-  # echo = TRUE,
-  echo = FALSE,
+  echo = TRUE,
   cache = TRUE,
-  # include = FALSE,
+  include = TRUE,
   fig.align = "center",
-  # s = "asis",
+  results = "asis",
   fig.width = 7,
   fig.height = 7,
   # out.width = 7,
@@ -110,10 +109,27 @@ urls_tea_dl <-
   )
 ```
 
-Although the reader may not care to see the gory details of the data cleansing,
-I'll show the code anyways for those few who may be interested. I know that I usually
-pick up one or two things that I'd never seen before when reviewing others'
-code for data cleaning (and other data management tasks).
+Next, I bind the data from all of the downloaded files together and do some cleaning.
+
+One relatively significant choice that I make is to only include the data
+for the school-wide level (via the `"All Students"` filtering criteria),
+although data for different demographics within each school is provided.
+
+Additionally, there are some details of each of the standardized
+tests of which the reader shoold be made aware.
+The SAT has `math`, `reading`, and `writing` sections,
+each having minimum and maximum scores of 200 and 800,
+meaning that the `total` can range from 600 to 2400.
+The ACT has `math`, `reading`, `english`, and `science` sections, 
+each having a minimum and maximum score of 1 and 36,
+combined for a single `compos` score also ranging from 1 to 36.
+To eliminate duplicate columns representing the same underlying "thing".
+I don't distinguish the `math` and `reading` section scores for each test
+in separate columns, I rename the ACT's `compos` score to `total`, following
+the convention used for the SAT's cumulative score.
+The other sections--`writing` for the SAT and `english` and `science` for the ACT--
+are not really analogous to sections in the other test, so they are filled with `NA`s
+appropriately.
 
 ```{r schools_tea, results = "hide"}
 schools_tea <-
@@ -203,7 +219,7 @@ created above)--I first want to verify that
 there is some non-trivial relationship among the scores for a given school on a given
 test across years. (I would be suprised if this were not shown to be true.)
 
-```{r schools_tea_corss_byyear, results = "hide"}
+```{r schools_tea_cors_byyear, results = "hide"}
 schools_tea_cors_byyear <-
   schools_tea %>%
   distinct(test, year, school, .keep_all = TRUE) %>%
@@ -219,23 +235,28 @@ schools_tea_cors_byyear %>%
   filter(year1 <= year2)
 ```
 
-```{r schools_tea_corss_byyear_show, echo = FALSE}
+```{r schools_tea_cors_byyear_show, echo = FALSE}
 schools_tea_cors_byyear %>% 
   filter(year1 <= year2) %>% 
   teproj::create_kable()
 ```
 
-
-```{r viz_schools_tea_cors, echo = FALSE}
+```{r visualize_cors_byyear, include = FALSE}
 visualize_cors_byyear <-
   function(data = NULL,
+           x = "year1",
+           y = "year2",
+           fill = "cor",
            alpha = 0.7,
            n_digits = 2,
            ...) {
+    x <- sym(x)
+    y <- sym(y)
+    fill <- sym(fill)
     data %>%
-      ggplot(aes(x = year1, y = year2, fill = cor)) +
+      ggplot(aes(x = !!x, y = !!y, fill = !!fill)) +
       geom_tile(alpha = alpha) +
-      geom_text(aes(label = round(cor, n_digits)), size = 5) +
+      geom_text(aes(label = round(!!fill, n_digits)), size = 5) +
       scale_fill_gradient2(...) +
       scale_x_continuous(breaks = scales::pretty_breaks()) +
       scale_y_continuous(breaks = scales::pretty_breaks()) +
@@ -247,11 +268,14 @@ visualize_cors_byyear <-
       labs(x = NULL,
            y = NULL)
   }
+```
+
+
+```{r viz_schools_tea_cors, echo = FALSE, fig.width = 8, fig.height = 8}
 viz_schools_tea_cors_byyear <-
   schools_tea_cors_byyear %>%
   filter(year2 <= year1) %>% 
   visualize_cors_byyear(
-    alpha = 0.7,
     n_digits = 2,
     low = "white",
     mid = "yellow",
@@ -346,18 +370,17 @@ schools_uil_cors_byyear %>%
   filter(year1 <= year2) 
 ```
 
-```{r schools_uil_cors_byyear, echo = FALSE}
+```{r schools_uil_cors_byyear_show, echo = FALSE}
 schools_uil_cors_byyear %>% 
   filter(year1 <= year2) %>% 
   teproj::create_kable()
 ```
 
-```{r schools_uil_cors_byyear, echo = FALSE}
+```{r viz_schools_uil_cors_byyear, echo = FALSE, fig.width = 8, fig.height = 8}
 viz_schools_uil_cors_byyear <-
   schools_uil_cors_byyear %>% 
   filter(year2 <= year1) %>% 
   visualize_cors_byyear(
-    alpha = 0.7,
     n_digits = 1,
     low = "white",
     mid = "yellow",
@@ -369,6 +392,17 @@ viz_schools_uil_cors_byyear <-
     "Correlation of UIL Academic Scores Among Years for Texas High Schools", 80)
   )
 viz_schools_uil_cors_byyear
+```
+
+```{r viz_schools_uil_cors_export, include = FALSE}
+teproj::export_ext_png(
+  viz_schools_uil_cors_byyear,
+  export = config$export_viz,
+  dir = config$dir_viz,
+  units = "in",
+  height = 8,
+  width = 8
+)
 ```
 
 We can see that correlations among years do exist, as we would expect.
@@ -467,7 +501,7 @@ summ_schools_join_fuzzy_1 %>%
 ```
 
 ```{r summ_schools_join_fuzzy_2, results = "hide"}
-# NOTE: Use a full join to get more informative output from `tetidy::summarise_join_stats()`.
+# NOTE: Use a full join to get more informative output from `tetidy::summarise_join_math()`.
 summ_schools_join_fuzzy_2 <-
   schools_tea %>%
   unite(school_city, school, city, remove = FALSE) %>%
@@ -543,8 +577,8 @@ the `total` and `reading` scores also available for each and the
 (Perhaps the ACT's `science` score could be compared to the `Science` UIL scores,
 but I choose not to do so here.)
 
-```{r schools_uil_stats, results = "hide"}
-schools_uil_stats <-
+```{r schools_uil_math, results = "hide"}
+schools_uil_math <-
   schools_uil %>%
   filter(str_detect(comp, "Calculator|Math|Number")) %>%
   group_by(year, school, city) %>% 
@@ -553,16 +587,16 @@ schools_uil_stats <-
   # NOTE: "Renormalize" `prnk_sum`.
   mutate(math_prnk = percent_rank(prnk_sum)) %>% 
   select(-prnk_sum)
-schools_uil_stats
+schools_uil_math
 ```
 
-```{r schools_uil_stats_show, echo = FALSE}
-schools_uil_stats %>% 
+```{r schools_uil_math_show, echo = FALSE}
+schools_uil_math %>% 
   teproj::create_kable()
 ```
 
-```{r schools_tea_stats, results = "hide"}
-schools_tea_stats <-
+```{r schools_tea_math, results = "hide"}
+schools_tea_math <-
   schools_tea %>%
   select(test, year, school, city, math) %>%
   filter(!is.na(math)) %>% 
@@ -572,79 +606,82 @@ schools_tea_stats <-
   group_by(year, school, city) %>% 
   summarise_at(vars(math_prnk), funs(mean(., na.rm = TRUE))) %>% 
   ungroup()
-schools_tea_stats
+schools_tea_math
 ```
 
-```{r schools_tea_stats_show, echo = FALSE}
-schools_tea_stats %>% 
+```{r schools_tea_math_show, echo = FALSE}
+schools_tea_math %>% 
   teproj::create_kable()
 ```
 
-```{r schools_join_prnks, results = "hide"}
-schools_join_prnks <-
-  schools_tea_stats %>%
+```{r schools_join_math, results = "hide"}
+schools_join_math <-
+  schools_tea_math %>%
   rename_at(vars(matches("^math")), funs(paste0("tea_", .))) %>% 
-  inner_join(schools_uil_stats %>% 
+  inner_join(schools_uil_math %>% 
              rename_at(vars(matches("^math")), funs(paste0("uil_", .))),
            by = c("year", "school", "city")) %>%
   select(year, school, city, matches("math"))
-schools_join_prnks
+schools_join_math
 ```
 
-```{r schools_join_prnks_show, echo = FALSE}
-schools_join_prnks %>% 
+```{r schools_join_math_show, echo = FALSE}
+schools_join_math %>% 
   teproj::create_kable()
 ```
 
-```{r schools_join_prnks_export, include = FALSE}
-teproj::export_ext_csv(
-  schools_join_prnks,
-  export = config$export_data,
-  dir = config$dir_data
-)
-```
-
-```{r schools_join_prnks_import, include = FALSE}
-schools_join_prnks <-
-  teproj::import_ext_csv(
-    schools_join_prnks,
-    dir = config$dir_data
-  )
-```
-
-```{r schools_join_prnks_corrs}
-schools_join_prnks_corrs <-
-  schools_join_prnks %>%
+```{r schools_join_math_cors, results = "hide"}
+schools_join_math_cors <-
+  schools_join_math %>%
   select(-year) %>% 
   select_if(is.numeric) %>%
   corrr::correlate()
-schools_join_prnks_corrs
+schools_join_math_cors
 ```
 
-```{r}
-cor <-
-  schools_join_prnks_corrs %>% 
+```{r schools_join_math_cors_show, echo = FALSE}
+schools_join_math_cors %>% 
+  teproj::create_kable()
+```
+
+```{r cor_join, include = FALSE, echo = FALSE}
+cor_join <-
+  schools_join_math_cors %>% 
   gather(cor, value, -rowname) %>% 
   filter(!is.na(value)) %>% 
   distinct(value) %>% 
   pull(value)
 ```
 
+So, this correlation value--`r cor_join`--seems fairly low. At face value, it certainly does
+not provide any basis to claim that schools that do well in the academic UIL
+competitions also do well with SAT/ACT tests.
+However, perhaps if I used  a different methodology, the result would be different.
+Other metrics used to quantify academic UIL
+performance could be tested in some kind of sensitivity analysis.
 
-So, this 
+While I won't do any kind of rigorous second evaulation here,
+I do want to try to quantify
+the impact of the "missing" data dropped due to mismatched school names.
+If all possible data had been used,
+would the final correlation value increased (or decreased)?
+A direct answer to this question is impossible, but we can evaluate the difference
+in the year-to-year
+correlations of scores from the schools that are joined with the
+correlations calculated for 
+all in "unjoined" `schools_tea` and `schools_uil` data sets. If we find
+that there are large discrepancies (one way or the other), then we may have some
+reason to believe that the `r cor_join` number found above is misleading.
 
-Note that the correlations in the joined data are 
-~~not as high among the TEA (i.e. the SAT/ACT) data as they are in the original, unjoined data.~~
-
-```{r schools_tea_prnks_tidy}
-schools_tea_prnks_tidy <-
-  schools_join_prnks %>%
+```{r schools_postjoin_math_tidy}
+schools_postjoin_math_tidy <-
+  schools_join_math %>%
   unite(school_city, school, city) %>% 
   gather(metric, value, matches("prnk"))
 ```
 
 ```{r pairwise_cor_f}
-pairwise_cor_f <-
+pairwise_cor_f1 <-
   function(data = NULL, which = c("tea", "uil")) {
     which <- match.arg(which)
     data %>%
@@ -656,51 +693,121 @@ pairwise_cor_f <-
         value = value
       ) %>% 
       rename(year1 = item1, year2 = item2, cor = correlation) %>% 
-      mutate(source = which)
+      mutate(source = which %>% toupper())
+  }
+
+pairwise_cor_f2 <-
+  function(data = NULL, which = c("tea", "uil")) {
+    which <- match.arg(which)
+    col <-
+      data %>%
+      names() %>% 
+      str_subset("math")
+    data %>%
+      unite(school_city, school, city) %>% 
+      rename(value = !!rlang::sym(col)) %>%
+      mutate(source = which %>% toupper()) %>% 
+      widyr::pairwise_cor(
+        feature = school_city,
+        item = year,
+        value = value
+      ) %>% 
+      rename(year1 = item1, year2 = item2, cor = correlation) %>% 
+      mutate(source = which %>% toupper())
   }
 ```
 
-```{r schools_prnks_cors_byyear}
-schools_prnks_cors_byyear <-
+```{r schools_math_cors_byyear_diffs, results = "hide"}
+schools_postjoin_math_cors_byyear <-
   bind_rows(
-    schools_tea_prnks_tidy %>% 
-      pairwise_cor_f("tea"),
-    schools_tea_prnks_tidy %>% 
-      pairwise_cor_f("uil")
+    schools_postjoin_math_tidy %>% 
+      pairwise_cor_f1("tea"),
+    schools_postjoin_math_tidy %>% 
+      pairwise_cor_f1("uil")
   )
+
+schools_prejoin_math_cors_byyear <-
+  bind_rows(
+    schools_tea_math %>%
+      pairwise_cor_f2("tea"),
+    schools_uil_math %>%
+      filter(year >= 2011, year <= 2015) %>% 
+      pairwise_cor_f2("uil")
+  )
+
+schools_math_cors_byyear_diffs <-
+  schools_postjoin_math_cors_byyear %>% 
+  inner_join(schools_prejoin_math_cors_byyear, 
+             by = c("year1", "year2", "source"), 
+             suffix = c("_join", "_unjoin")) %>% 
+  mutate(cor_diff = cor_join - cor_unjoin)
 ```
 
-```{r schools_prnks_cors_byyear_wide, results = "hide"}
-schools_prnks_cors_byyear_wide <-
-  schools_prnks_cors_byyear %>% 
+```{r schools_math_cors_byyear_diffs_wide, results = "hide"}
+schools_math_cors_byyear_diffs_wide <-
+  schools_math_cors_byyear_diffs %>% 
   filter(year1 <= year2) %>% 
+  select(-matches("join$")) %>% 
   unite(year_pair, year1, year2) %>% 
-  spread(source, cor)
-schools_prnks_cors_byyear_wide
+  spread(source, cor_diff)
+schools_math_cors_byyear_diffs_wide
 ```
 
-```{r schools_tea_prnks_cors_byyear_wide_show, echo = FALSE}
-schools_prnks_cors_byyear_wide %>% 
+```{r schools_math_cors_byyear_diffs_wide_show, echo = FALSE}
+schools_math_cors_byyear_diffs_wide %>% 
   teproj::create_kable()
 ```
 
-```{r viz_schools_cors_byyear, echo = FALSE}
-viz_schools_cors_byyear <-
-  schools_prnks_cors_byyear %>% 
+
+```{r viz_schools_math_cors_byyear_diffs, echo = FALSE, fig.width = 8, fig.height = 8}
+viz_schools_math_cors_byyear_diffs <-
+  schools_math_cors_byyear_diffs %>%
+  filter(year2 <= year1) %>% 
   visualize_cors_byyear(
-    alpha = 0.7,
+    fill = "cor_diff",
     n_digits = 2,
     low = "cyan",
     high = "red",
-    limits = c(0.5, 0.9)
+    mid = "white",
+    limits = c(-0.3, 0.3),
+    midpoint = 0
   ) +
+  facet_wrap( ~ source) +
   labs(title = str_wrap(
-    "Correlation of UIL Academic Scores and SAT/ACT Scores Among Years for Texas High Schools", 80)
-  ) +
-  facet_wrap( ~ source)
-viz_schools_cors_byyear
+    paste0(
+      "Difference in Year-to-Year Correlation of UIL Academic Scores and SAT/ACT Scores",
+      "for Pre- vs. Post-Joined Data")
+    , 80),
+    caption =
+      str_wrap(
+        paste0(
+          "Positive values indicate that the correlation is more positive in the post-joined data ",
+          "(which has less records due to mismatched rows that are dropped)."
+        ),
+        120
+      )
+        
+  )
+viz_schools_math_cors_byyear_diffs
 ```
 
+```{r viz_schools_math_cors_byyear_diffs_export, include = FALSE}
+teproj::export_ext_png(
+  viz_schools_math_cors_byyear_diffs,
+  export = config$export_viz,
+  dir = config$dir_viz,
+  units = "in",
+  height = 8,
+  width = 8
+)
+```
+
+Note that the correlations in the joined data are a bit "stronger"--in the sense that they 
+are more positive--among the TEA
+SAT/ACT-related data, although not in any kind of magnificent way. 
+Additionally, the differences for the UIL data are trivial.
+Thus, we might say that the additional data that could have possibly increased (or decreased)
+the correlation value found--`r cor_join`--would not have changed much at all.
 
 ```{r schools_tea_eda, include = FALSE, eval = FALSE}
 # ## Bonus Data Exploration
@@ -715,19 +822,17 @@ viz_schools_cors_byyear
 #   distinct(test, year, school, .keep_all = TRUE) %>%
 #   filter(str_detect(school, "CLEMENS|STEELE II")) %>%
 #   spread(year, total)
+# Even though their football team may have been better than ours while I was attending
+# high school--which is a big deal in Texas--I can say that our school 
+# was better (marginally) according to a simple comparison of scores on these tests.
+# That may not be saying a lot to someone with no ties to this setting, but
+# it sparks a bit of pride in me!
 ```
 
-Even though their football team may have been better than ours while I was attending
-high school--which is a big deal in Texas--I can say that our school 
-was better (marginally) according to a simple comparison of scores on these tests.
-That may not be saying a lot to someone with no ties to this setting, but
-it sparks a bit of pride in me!
 
 ## Conclusion
 
-So, after doing some
-more scraping, fuzzy joining, and basic statistics (correlation), I have a strong
-case to make that
-my initial inclination is correct--there is no significant relationship between
+So, my initial inclination (stated in the introduction to my series
+of posts on the academic UIL competitions) seems correct--there is no significant relationship between
 Texas high school academic competition scores and standardized test scores (for math).
 
