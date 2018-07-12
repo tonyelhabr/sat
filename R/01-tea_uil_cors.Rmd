@@ -15,13 +15,14 @@ knitr::opts_chunk$set(
   include = TRUE,
   fig.align = "center",
   results = "asis",
-  fig.width = 7,
-  fig.height = 7,
-  # out.width = 7,
-  # out.height = 7,
+  fig.width = 6,
+  fig.height = 6,
+  # out.width = 6,
+  # out.height = 6,
   warning = FALSE,
   message = FALSE
 )
+options(scipen = 1, digits = 2)
 ```
 
 ```{r config, include = FALSE}
@@ -31,14 +32,16 @@ config <-
     dir_data = "data",
     export_viz = TRUE,
     dir_viz = "figs",
-    download = FALSE
+    download = FALSE,
+    viz_footer = "By: Tony ElHabr."
   )
 ```
 
 ## Introduction
 
-I wanted to do a follow-up on my posts about Texas high school UIL academic competitions
-where I evaluate the relationship between the school performance in those
+I wanted to do a follow-up on 
+[my series of posts about Texas high school UIL academic competitions](https://tonyelhabr.rbind.io/posts/analysis-texas-high-school-academics-intro/)
+to more closely evaluate the relationship between the school performance in those
 competitions with school-wide SAT and ACT scores.
 In my introduction to that series, I stated the following:
 <i>
@@ -48,8 +51,9 @@ certainly are the most common measure of academic strength,
 but I think rankings by academic competitions may be more indicative.
 </i>
 
-In a sense, I implied that the academic UIL scores may not correspond
-well, or at all, with standardized test scores. So let's set out to see what
+I was implying that the academic UIL scores may not correspond
+well, or at all, with standardized test scores, but I did not attempt to prove so.
+So now let's set out to see what
 we can prove (one way or the other).
 
 ## Data Collection
@@ -62,7 +66,7 @@ have non-abbreviated names, they are the two most popular standardized tests
 used for college admission in the United States.) The task
 of scraping from this source is a perfect
 use-case for the super-handy `{xml2}` and `{rvest}` packages,
-as well the well-knwon `{stringr}` and `{purrr}` packages in the `{tidyverse}`.
+as well the well-known `{stringr}` and `{purrr}` packages in the `{tidyverse}`.
 
 ```{r packages}
 library("tidyverse")
@@ -70,7 +74,7 @@ library("rlang")
 library("teplot")
 ```
 
-```{r scrape_tea}
+```{r scrape_tea, results = "hold"}
 urls_tea <-
   "https://tea.texas.gov/acctres/sat_act_index.html" %>%
   xml2::read_html() %>%
@@ -116,7 +120,7 @@ for the school-wide level (via the `"All Students"` filtering criteria),
 although data for different demographics within each school is provided.
 
 Additionally, there are some details of each of the standardized
-tests of which the reader shoold be made aware.
+tests of which the reader shooed be made aware.
 The SAT has `math`, `reading`, and `writing` sections,
 each having minimum and maximum scores of 200 and 800,
 meaning that the `total` can range from 600 to 2400.
@@ -131,7 +135,7 @@ The other sections--`writing` for the SAT and `english` and `science` for the AC
 are not really analogous to sections in the other test, so they are filled with `NA`s
 appropriately.
 
-```{r schools_tea, results = "hide"}
+```{r schools_tea, results = "hide", eval = FALSE}
 schools_tea <-
   urls_tea %>%
   create_path_dl_tea() %>%
@@ -188,7 +192,7 @@ schools_tea %>%
   filter(n > 1)
 ```
 
-```{r schools_tea_export, include = FALSE}
+```{r schools_tea_export, include = FALSE, eval = FALSE}
 teproj::export_ext_csv(
   schools_tea,
   export = config$export_data,
@@ -209,15 +213,16 @@ schools_tea %>%
   teproj::create_kable()
 ```
 
-### Data Exploration
+### EDA: Year-to-Year Correlations
 
 First, before evaluating the primary concern at hand--the relationship between
 the academic UIL scores (accessible in data that I collected
-and cleaned for my series of posts analyzing the UIL data)
+and cleaned for
+[my series of posts analyzing the UIL data](https://tonyelhabr.rbind.io/posts/analysis-texas-high-school-academics-intro/))
 and the SAT/ACT scores (available in the `schools_tea` data
 created above)--I first want to verify that
 there is some non-trivial relationship among the scores for a given school on a given
-test across years. (I would be suprised if this were not shown to be true.)
+test across years. (I would be surprised if this were not shown to be true.)
 
 ```{r schools_tea_cors_byyear, results = "hide"}
 schools_tea_cors_byyear <-
@@ -276,7 +281,6 @@ viz_schools_tea_cors_byyear <-
   schools_tea_cors_byyear %>%
   filter(year2 <= year1) %>% 
   visualize_cors_byyear(
-    n_digits = 2,
     low = "white",
     mid = "yellow",
     high = "red",
@@ -284,13 +288,26 @@ viz_schools_tea_cors_byyear <-
     midpoint = 0.45
   ) +
   labs(title = str_wrap(
-    "Correlation of SAT/ACT Scores Among Years for Texas High Schools",
-    80
-  ))
+    paste0(
+    "Correlation of SAT/ACT Scores Among Years for Texas High Schools"
+    ), 80
+  ),
+  caption = 
+    paste0(
+      str_wrap(
+        paste0(
+          "Source: https://tea.texas.gov/acctres/sat_act_index.html."
+        ),
+        100
+      ),
+      "\n",
+      config$viz_footer
+    )
+  )
 viz_schools_tea_cors_byyear
 ```
 
-As expected, there is some storng correlations among the years for school-wide scores
+As expected, there is some strong correlations among the years for school-wide scores
 on these tests.
 
 ```{r viz_schools_tea_cors_export, include = FALSE}
@@ -305,12 +322,14 @@ teproj::export_ext_png(
 ```
 
 Ok, now let's bring in the "cleaned" school data (`schools_uil`) that I collected
-and cleaned my UIL analysis.
+and cleaned my UIL analysis. I'll subset the data to include only the same years
+found in `schools_tea`--2011 through 2015.
 
 ```{r schools_uil, results = "hide"}
 schools_uil <-
   file.path("data", "schools_uil.csv") %>% 
-  readr::read_csv()
+  readr::read_csv() %>% 
+  filter(year >= 2011, year <= 2015)
 schools_uil
 ```
 
@@ -322,14 +341,15 @@ schools_uil %>%
 Now let's review this data set to see if year-to-year correlations also exist with it.
 
 Importantly, some choice about how to quantify performance needs to be made.
-As I discussed in my long-form series of posts exploring the UIL academic data,
+As I discussed in
+[my long-form series of posts exploring the UIL academic data](https://tonyelhabr.rbind.io/posts/analysis-texas-high-school-academics-intro/),
 the evaluation of performance is somewhat subjective. Should we use
 number of times a school advanced to the next level of competition in a given year?
 (Note that there are three competition levels--`District`, `Region`, and `State`.)
 What about the number the number of other schools it "defeated" in head-to-head competitions?
 In that separate analysis, I made the choice to use the percentile rank (`prnk`) of the school's placings
 across all competition levels for a given competition type (`comp`). 
-I beleive this measure bests represent
+I believe this measure bests represent
 a school's quality of performance (where a higher value indicates better performance).
 As I stated there when explaining
 my choice to use percent rank for identifying "dominant" individual",
@@ -381,7 +401,6 @@ viz_schools_uil_cors_byyear <-
   schools_uil_cors_byyear %>% 
   filter(year2 <= year1) %>% 
   visualize_cors_byyear(
-    n_digits = 1,
     low = "white",
     mid = "yellow",
     high = "red",
@@ -389,7 +408,24 @@ viz_schools_uil_cors_byyear <-
     midpoint = 0.45
   ) +
   labs(title = str_wrap(
-    "Correlation of UIL Academic Scores Among Years for Texas High Schools", 80)
+    paste0(
+    "Correlation of UIL Academic Scores Among Years for Texas High Schools"
+    ), 80
+  ),
+  caption =
+    paste0(
+      str_wrap(
+        paste0(
+          "Data: Raw scores for competitions at all levels and of all types from 2011 through 2015."
+
+        ),
+        100
+      ),
+      "\n",
+      "Source: https://www.hpscience.net/.",
+      "\n",
+      config$viz_footer
+    )
   )
 viz_schools_uil_cors_byyear
 ```
@@ -409,10 +445,10 @@ We can see that correlations among years do exist, as we would expect.
 The strength of the correlations decrease for years that are farther apart,
 which is also what we might expect.
 
-### Aside: Fuzzy Joining
+### Fuzzy Joining
 
 An important thing to keep in mind is that
-the acadmeic UIL data was scraped from a different website--https://www.hpscience.net/ (which 
+the academic UIL data was scraped from a different website--https://www.hpscience.net/ (which 
 was the only site that I found to have the academic competition scores)--than
 that used to collect the SAT and ACT scores here. 
 
@@ -427,63 +463,67 @@ However, given this context--in which I am comparing data from two
 different data sources--the reality is that there are more than a few differences in the
 names of schools, so joining the data from the two different sources is tricky. 
 To aid in my experimentation
-with "fuzzy joining", I created a function--`join_fuzzily()`-- to serve as
+with "fuzzy joining", I use a function from my `{tetidy}` 
+package--`join_fuzzily()`, which is essentially
 a wrapper for the `stringdist_*_join()` functions provided by the `{fuzzyjoin}` package.
 With this function, I was able to evaluate different values for `max_dist` and
 different join columns to
-make a judgement regarding the quality of joins--primarily via counts
-of joined and unjoined rows using the `summarise_join_stats()` function from my
-personal `{tetidy}` package--to make a decision on how I should join the UIL and
+make a judgement regarding the quality of joins. I primarily considered counts
+of joined and unjoined rows computed with
+the `summarise_join_stats()` function from my `{tetidy}` package
+--to make a decision on how I should join the UIL and
 SAT/ACT school data. [^dry]
 
 [^dry]:
-Check out [my post on the "DRY" principle and its application to `R` packages]().
+Check out 
+[my post on the "DRY" principle and its application to `R` packages](https://tonyelhabr.rbind.io/posts/dry-principle-make-a-package/).
+Creating packages for actions that you perform across projects is a real time-saver!
 
 What follows is the results of some of my experimentation.
 
 ```{r join_fuzzily}
-join_fuzzily <-
-  function(x = NULL,
-           y = NULL,
-           how = "inner",
-           max_dist = 0,
-           cols_join = "school",
-           copy = FALSE,
-           suffix_x = "_x",
-           suffix_y = "_y") {
-
-    f <- sprintf("fuzzyjoin::stringdist_%s_join", how)
-
-    ret <-
-      teproj::do_call_with(f, list(x = x, y = y, by = cols_join, max_dist = max_dist))
-
-    ret <-
-      ret %>%
-      rename_at(vars(ends_with(".x")), funs(gsub("\\.x", suffix_x, .))) %>%
-      rename_at(vars(ends_with(".y")), funs(gsub("\\.y", suffix_y, .)))
-
-    if(copy) {
-      cols_join_y <- quo_name(paste0(cols_join, suffix_y))
-      ret <-
-        ret %>%
-        left_join(y %>% mutate(!!!sym(cols_join_y) := !!!sym(cols_join)), by = cols_join)
-    }
-    ret
-  }
+# join_fuzzily <-
+#   function(x = NULL,
+#            y = NULL,
+#            mode = "inner",
+#            max_dist = 0,
+#            cols_join = "school",
+#            copy = FALSE,
+#            suffix_x = "_x",
+#            suffix_y = "_y") {
+# 
+#     f <- sprintf("fuzzyjoin::stringdist_%s_join", mode)
+# 
+#     ret <-
+#       teproj::do_call_with(f, list(x = x, y = y, by = cols_join, max_dist = max_dist))
+# 
+#     ret <-
+#       ret %>%
+#       rename_at(vars(ends_with(".x")), funs(gsub("\\.x", suffix_x, .))) %>%
+#       rename_at(vars(ends_with(".y")), funs(gsub("\\.y", suffix_y, .)))
+# 
+#     if(copy) {
+#       cols_join_y <- quo_name(paste0(cols_join, suffix_y))
+#       ret <-
+#         ret %>%
+#         left_join(y %>% mutate(!!!sym(cols_join_y) := !!!sym(cols_join)), by = cols_join)
+#     }
+#     ret
+#   }
 ```
 
-```{r summ_schools_join_fuzzy, results = "hide"}
+```{r summ_schools_joinfuzzy, results = "hide"}
 schools_uil_distinct <-
   schools_uil %>%
   distinct(school, city)
 ```
 
-```{r summ_schools_join_fuzzy_1, results = "hide"}
-summ_schools_join_fuzzy_1 <-
+```{r summ_schools_joinfuzzy_1, results = "hide"}
+summ_schools_joinfuzzy_1 <-
   schools_tea %>%
-  join_fuzzily(
+  tetidy::join_fuzzily(
     schools_uil_distinct,
-    how = "full",
+    mode = "full",
     max_dist = 0,
     cols_join = c("school"),
     suffix_x = "_tea",
@@ -492,24 +532,23 @@ summ_schools_join_fuzzy_1 <-
   tetidy::summarise_join_stats(school_uil, school_tea) %>% 
   select(-x, -y) %>% 
   gather(metric, value)
-summ_schools_join_fuzzy_1
+summ_schools_joinfuzzy_1
 ```
 
-```{r summ_schools_join_fuzzy_1_show, echo = FALSE}
-summ_schools_join_fuzzy_1 %>% 
+```{r summ_schools_joinfuzzy_1_show, echo = FALSE}
+summ_schools_joinfuzzy_1 %>% 
   teproj::create_kable()
 ```
 
-```{r summ_schools_join_fuzzy_2, results = "hide"}
+```{r summ_schools_joinfuzzy_2, results = "hide"}
 # NOTE: Use a full join to get more informative output from `tetidy::summarise_join_math()`.
-summ_schools_join_fuzzy_2 <-
+summ_schools_joinfuzzy_2 <-
   schools_tea %>%
   unite(school_city, school, city, remove = FALSE) %>%
-  join_fuzzily(
+  tetidy::join_fuzzily(
     schools_uil_distinct %>%
       unite(school_city, school, city, remove = FALSE),
-    how = "full",
-    # how = "left",
+    mode = "full",
     max_dist = 0,
     cols_join = c("school_city"),
     suffix_x = "_tea",
@@ -518,11 +557,11 @@ summ_schools_join_fuzzy_2 <-
   tetidy::summarise_join_stats(school_city_uil, school_city_tea) %>% 
   select(-x, -y) %>% 
   gather(metric, value)
-summ_schools_join_fuzzy_2
+summ_schools_joinfuzzy_2
 ```
 
-```{r summ_schools_join_fuzzy_2_show, echo = FALSE}
-summ_schools_join_fuzzy_2 %>% 
+```{r summ_schools_joinfuzzy_2_show, echo = FALSE}
+summ_schools_joinfuzzy_2 %>% 
   teproj::create_kable()
 ```
 
@@ -530,10 +569,10 @@ summ_schools_join_fuzzy_2 %>%
 schools_join <-
   schools_tea %>%
   unite(school_city, school, city, remove = FALSE) %>%
-  join_fuzzily(
+  tetidy::join_fuzzily(
     schools_uil_distinct %>%
       unite(school_city, school, city, remove = FALSE),
-    how = "inner",
+    mode = "inner",
     max_dist = 0,
     cols_join = c("school_city"),
     suffix_x = "_tea",
@@ -552,14 +591,14 @@ schools_join
 
 After some further "offline" experimentation, 
 I came to conclusion that none of these fuzzy join
-attempts was satisfiable.
+attempts was sufficiently adequate for my liking.
 Thus, I decided that I would simply combine the two data sets 
 with an `inner_join()` on
 `school` and  `city` (as well as `year`, to make sure that
 school scores match up properly) with the understanding that many schools end up being excluded
 due to imperfect matching. With data
 
-### Relationship between Academic UIL Performance and SAT/ACT scores.
+### "Final" Correlation Analysis
 
 So, at this point, having decided how to join the data,
 I have set myself up to do that which I set out to do--evaluate
@@ -660,7 +699,9 @@ However, perhaps if I used  a different methodology, the result would be differe
 Other metrics used to quantify academic UIL
 performance could be tested in some kind of sensitivity analysis.
 
-While I won't do any kind of rigorous second evaulation here,
+### EDA: Year-to-Year Correlations, Cont.
+
+While I won't do any kind of rigorous second evaluation here,
 I do want to try to quantify
 the impact of the "missing" data dropped due to mismatched school names.
 If all possible data had been used,
@@ -686,7 +727,7 @@ pairwise_cor_f1 <-
     which <- match.arg(which)
     data %>%
       filter(metric %>% str_detect(which)) %>% 
-      filter_at(vars(value), all_vars(!is.nan(.))) %>% 
+      # filter_at(vars(value), all_vars(!is.nan(.))) %>% 
       widyr::pairwise_cor(
         feature = school_city,
         item = year,
@@ -731,7 +772,6 @@ schools_prejoin_math_cors_byyear <-
     schools_tea_math %>%
       pairwise_cor_f2("tea"),
     schools_uil_math %>%
-      filter(year >= 2011, year <= 2015) %>% 
       pairwise_cor_f2("uil")
   )
 
@@ -765,7 +805,6 @@ viz_schools_math_cors_byyear_diffs <-
   filter(year2 <= year1) %>% 
   visualize_cors_byyear(
     fill = "cor_diff",
-    n_digits = 2,
     low = "cyan",
     high = "red",
     mid = "white",
@@ -775,18 +814,23 @@ viz_schools_math_cors_byyear_diffs <-
   facet_wrap( ~ source) +
   labs(title = str_wrap(
     paste0(
-      "Difference in Year-to-Year Correlation of UIL Academic Scores and SAT/ACT Scores",
+      "Difference in Year-to-Year Correlation of UIL Academic Math Scores and SAT/ACT Math Scores",
       "for Pre- vs. Post-Joined Data")
     , 80),
     caption =
+      paste0(
       str_wrap(
         paste0(
           "Positive values indicate that the correlation is more positive in the post-joined data ",
-          "(which has less records due to mismatched rows that are dropped)."
+          "(which has less records due to mismatched rows that are dropped).",
+          "Scores for each source are rescaled to a percentile rank, where 0 is the minimum ",
+          "and 1 is the maximum."
         ),
-        120
+        100
+      ),
+      "\n",
+      config$viz_footer
       )
-        
   )
 viz_schools_math_cors_byyear_diffs
 ```
@@ -832,7 +876,9 @@ the correlation value found--`r cor_join`--would not have changed much at all.
 
 ## Conclusion
 
-So, my initial inclination (stated in the introduction to my series
-of posts on the academic UIL competitions) seems correct--there is no significant relationship between
-Texas high school academic competition scores and standardized test scores (for math).
+So, my initial inclination
+[in my analysis of academic UIL competitions](https://tonyelhabr.rbind.io/posts/analysis-texas-high-school-academics-intro/)) seems correct--there is no significant relationship between
+Texas high school academic competition scores and standardized test scores (for math, between 2011 and 2015).
+With that question answered,
+I intend to explore this rich data set in other ways in future blog posts.
 
