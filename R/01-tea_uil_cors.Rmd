@@ -40,33 +40,41 @@ config <-
 ## Introduction
 
 I wanted to do a follow-up on 
-[my series of posts about Texas high school UIL academic competitions](https://tonyelhabr.rbind.io/posts/analysis-texas-high-school-academics-intro/)
+[my series of posts](https://tonyelhabr.rbind.io/posts/analysis-texas-high-school-academics-intro/) about Texas high school [University Interscholastic League](http://www.uiltexas.org/) (UIL) academic competitions
 to more closely evaluate the relationship between the school performance in those
-competitions with school-wide SAT and ACT scores.
+competitions with school-wide [SAT](https://en.wikipedia.org/wiki/SAT)) and 
+[ACT](https://www.act.org/) scores.
+For those who may not be familiar with these tests,
+these are the two most popular standardized tests
+used for college admission in the United States.
+
 In my introduction to that series, I stated the following:
 <i>
 School-wide ... scores on state- and national-standardized 
-tests (e.g. the Standardized [SAT](https://en.wikipedia.org/wiki/SAT))
+tests (e.g. the SAT)
 certainly are the most common measure of academic strength,
 but I think rankings by academic competitions may be more indicative.
 </i>
 
-I was implying that the academic UIL scores may not correspond
-well, or at all, with standardized test scores, but I did not attempt to prove so.
-So now let's set out to see what
-we can prove (one way or the other).
+Essentially, I was implying that the academic UIL scores may not correspond
+well, or at all, with standardized test scores.
+However, I did not attempt to prove this hypothesis, 
+which is what I set out to do here.
+While I'm at it, I'll show the code and provide some commentary
+to explain my process.
 
 ## Data Collection
 
+While I already have collected and cleaned the UIL data that I'll need
+by virtue of my work for
+[my series of posts analyzing the UIL competitions](https://tonyelhabr.rbind.io/posts/analysis-texas-high-school-academics-intro/),
+I did not retrieve data for standardized test scores.
 To my delight,
 the [Texas Education Agency's website](https://tea.texas.gov) publishes
-Texas high school SAT and [ACT](https://www.act.org/) scores for the years 2011 through 2015.
-(For those who may not be familiar with these tests, which, strangely don't really
-have non-abbreviated names, they are the two most popular standardized tests
-used for college admission in the United States.) The task
-of scraping from this source is a perfect
+Texas high school SAT and ACT scores for the years 2011 through 2015.
+The task of scraping from this source is a perfect
 use-case for the super-handy `{xml2}` and `{rvest}` packages,
-as well the well-known `{stringr}` and `{purrr}` packages in the `{tidyverse}`.
+as well the well-known awesome `{stringr}` and `{purrr}` packages in the `{tidyverse}`.
 
 ```{r packages}
 library("tidyverse")
@@ -168,20 +176,28 @@ schools_tea <-
          county = cntyname,
          city = regnname) %>%
   mutate_if(is.character, funs(str_replace_all(., "=|\"", ""))) %>%
-  mutate_at(vars(matches("school|district|city|county")), funs(toupper)) %>% 
-  mutate_at(vars(county), funs(str_remove_all(., "\\s+COUNTY"))) %>%
-  mutate_at(vars(school), funs(str_remove_all(., "[H]\\s*[S]$") %>% str_trim())) %>%
+  mutate_at(vars(school, district, county, city), funs(toupper)) %>% 
+  # NOTE: Some county names are truncated and end with COUN or COUNT.
+  # (The max seems to be 18 characters).
+  # Fortunately, ther are no county names with COUN in their names, so the following
+  # regular expression is sufficient.
+  mutate_at(vars(county), funs(str_remove_all(., "\\s+COUN.*$"))) %>%
+  # NOTE: Remove all HS/H S at the end of school names, as well as ampersands.
+  # This seems to improve join percentages with other data sets.
+  mutate_at(vars(school), funs(str_remove_all(., "([H]\\s*[S]$)|(\\s+\\&)") %>% str_trim())) %>%
   # NOTE: This is (try to) to resolve duplicates in raw data.
   # group_by_at(vars(matches("test|year|school|district|county|city"))) %>% 
   # summarise_all(funs(max(., na.rm = TRUE))) %>% 
   # ungroup() %>% 
   arrange(test, year, school)
 schools_tea
+
 ```
 
 ```{r schools_tea_debug, include = FALSE, eval = FALSE}
 # Debugging...
 schools_tea
+schools_tea %>% filter(str_detect(county, "COUN"))
 schools_tea %>%
   count(test, year, is.na(school), sort = TRUE)
 schools_tea %>%
@@ -216,9 +232,7 @@ schools_tea %>%
 ### EDA: Year-to-Year Correlations
 
 First, before evaluating the primary concern at hand--the relationship between
-the academic UIL scores (accessible in data that I collected
-and cleaned for
-[my series of posts analyzing the UIL data](https://tonyelhabr.rbind.io/posts/analysis-texas-high-school-academics-intro/))
+the academic UIL scores
 and the SAT/ACT scores (available in the `schools_tea` data
 created above)--I first want to verify that
 there is some non-trivial relationship among the scores for a given school on a given
@@ -879,6 +893,6 @@ the correlation value found--`r cor_join`--would not have changed much at all.
 So, my initial inclination
 [in my analysis of academic UIL competitions](https://tonyelhabr.rbind.io/posts/analysis-texas-high-school-academics-intro/)) seems correct--there is no significant relationship between
 Texas high school academic competition scores and standardized test scores (for math, between 2011 and 2015).
-With that question answered,
+And, with that question answered,
 I intend to explore this rich data set in other ways in future blog posts.
 
