@@ -1,7 +1,7 @@
 ---
 title: ""
 author: "Tony"
-date: "July 11, 2018"
+date: ""
 output:
   html_document:
     toc: true
@@ -121,14 +121,21 @@ urls_tea_dl <-
   )
 ```
 
-Next, I bind the data from all of the downloaded files together and do some cleaning.
+## Data Cleaning
 
-One relatively significant choice that I make is to only include the data
+Next, I bind the data from all of the downloaded files together and do some cleaning.
+I put these actions in function(s) because I plan on re-using them in future posts
+where I explore this data set in other ways.
+
+One relatively significant choice that I make here is to only include the data
 for the school-wide level (via the `"All Students"` filtering criteria),
 although data for different demographics within each school is provided.
+The other data set that I am evaluating--the academic UIL data--
+does not have demographci-specific information, so I want to treat
+the two set as "equally" as possible.
 
-Additionally, there are some details of each of the standardized
-tests of which the reader shooed be made aware.
+Additionally, in order to better understand the resulting data set,
+the reader should be made aware of some of the details of the tests.
 The SAT has `math`, `reading`, and `writing` sections,
 each having minimum and maximum scores of 200 and 800,
 meaning that the `total` can range from 600 to 2400.
@@ -143,53 +150,80 @@ The other sections--`writing` for the SAT and `english` and `science` for the AC
 are not really analogous to sections in the other test, so they are filled with `NA`s
 appropriately.
 
+Finally, for the intersted reader,
+there are some details regarding the code implementation that I document in
+comments (both for explaining actions for myself and for the reader).
+
+```{r import_tea_data_funcs, results = "hide", eval = FALSE}
+import_tea_data <-
+  function(path = NULL, rgx_grp = NULL) {
+    ret <-
+      path %>%
+      readr::read_csv() %>%
+      rename_all(funs(tolower))
+    
+    if(!is.null(rgx_grp)) {
+      ret <-
+        ret %>%
+        filter(group %>% str_detect(rgp_rgx))
+    }
+    ret <-
+      ret %>%
+      select(
+        matches(
+          "name$|math|reading|writing|total|english|science|compos"
+        )
+      )
+    ret
+  }
+
+import_tea_data_cleanly <-
+  function(urls = NULL, ...) {
+    ret <-
+      urls %>%
+      create_path_dl_tea() %>%
+      tibble(path = .) %>%
+      mutate(
+        test = stringr::str_extract(path, "([Ss][Aa][Tt])|([Aa][Cc][Tt])") %>% toupper(),
+        year = stringr::str_extract(path, "[:digit:]+") %>% as.integer()
+      ) %>%
+      mutate(contents = purrr::map(path, ~import_tea_data(.x, ...))) %>%
+      unnest() %>%
+      # NOTE: No longer need this columns(s) any more.
+      select(-path) %>%
+      mutate_at(vars(total), funs(ifelse(test == "ACT", compos, .))) %>% 
+      # NOTE: No longer need this column(s) any more.
+      select(-compos) %>% 
+      # NOTE: Rearranging score columns in a more logical fashion.
+      select(-total, everything(), total) %>% 
+      # NOTE: Renaming "important" columns.
+      rename(school = campname,
+             district = distname,
+             county = cntyname,
+             city = regnname) %>%
+      mutate_if(is.character, funs(str_replace_all(., "=|\"", ""))) %>%
+      mutate_at(vars(school, district, county, city), funs(toupper)) %>% 
+      # NOTE: Some county names are truncated and end with COUN or COUNT.
+      # (The max seems to be 18 characters).
+      # Fortunately, ther are no county names with COUN in their names, so the following
+      # regular expression is sufficient.
+      mutate_at(vars(county), funs(str_remove_all(., "\\s+COUN.*$"))) %>%
+      # NOTE: Remove all HS/H S at the end of school names, as well as ampersands.
+      # This seems to improve join percentages with other data sets.
+      mutate_at(vars(school), funs(str_remove_all(., "([H]\\s*[S]$)|(\\s+\\&)") %>% str_trim())) %>%
+      # NOTE: This is (try to) to resolve duplicates in raw data.
+      # group_by_at(vars(matches("test|year|school|district|county|city"))) %>% 
+      # summarise_all(funs(max(., na.rm = TRUE))) %>% 
+      # ungroup() %>% 
+      arrange(test, year, school)
+    ret
+  }
+```
+
 ```{r schools_tea, results = "hide", eval = FALSE}
 schools_tea <-
   urls_tea %>%
-  create_path_dl_tea() %>%
-  tibble(path = .) %>%
-  mutate(
-    test = stringr::str_extract(path, "([Ss][Aa][Tt])|([Aa][Cc][Tt])") %>% str_to_upper(),
-    year = stringr::str_extract(path, "[:digit:]+") %>% as.integer()
-  ) %>%
-  mutate(contents =
-           purrr::map2(path, test,
-                       # ~import_tea_data(.x, .y)
-                       ~ {
-                         .x %>%
-                           readr::read_csv() %>%
-                           rename_all(funs(tolower)) %>%
-                           filter(group == "All Students") %>%
-                           select(
-                             matches(
-                               "name$|math|reading|writing|total|english|science|compos"
-                             )
-                           )
-                       })) %>%
-  unnest() %>%
-  select(-path) %>%
-  mutate_at(vars(total), funs(ifelse(test == "ACT", compos, .))) %>% 
-  select(-compos) %>% 
-  select(-total, everything(), total) %>% 
-  rename(school = campname,
-         district = distname,
-         county = cntyname,
-         city = regnname) %>%
-  mutate_if(is.character, funs(str_replace_all(., "=|\"", ""))) %>%
-  mutate_at(vars(school, district, county, city), funs(toupper)) %>% 
-  # NOTE: Some county names are truncated and end with COUN or COUNT.
-  # (The max seems to be 18 characters).
-  # Fortunately, ther are no county names with COUN in their names, so the following
-  # regular expression is sufficient.
-  mutate_at(vars(county), funs(str_remove_all(., "\\s+COUN.*$"))) %>%
-  # NOTE: Remove all HS/H S at the end of school names, as well as ampersands.
-  # This seems to improve join percentages with other data sets.
-  mutate_at(vars(school), funs(str_remove_all(., "([H]\\s*[S]$)|(\\s+\\&)") %>% str_trim())) %>%
-  # NOTE: This is (try to) to resolve duplicates in raw data.
-  # group_by_at(vars(matches("test|year|school|district|county|city"))) %>% 
-  # summarise_all(funs(max(., na.rm = TRUE))) %>% 
-  # ungroup() %>% 
-  arrange(test, year, school)
+  import_tea_data_cleanly(grp_rgx = "All Students")
 schools_tea
 
 ```
@@ -234,7 +268,7 @@ schools_tea %>%
 First, before evaluating the primary concern at hand--the relationship between
 the academic UIL scores
 and the SAT/ACT scores (available in the `schools_tea` data
-created above)--I first want to verify that
+created above)--I want to verify that
 there is some non-trivial relationship among the scores for a given school on a given
 test across years. (I would be surprised if this were not shown to be true.)
 
@@ -321,7 +355,7 @@ viz_schools_tea_cors_byyear <-
 viz_schools_tea_cors_byyear
 ```
 
-As expected, there is some strong correlations among the years for school-wide scores
+As expected, there are some strong correlations among the years for school-wide scores
 on these tests.
 
 ```{r viz_schools_tea_cors_export, include = FALSE}
@@ -336,7 +370,7 @@ teproj::export_ext_png(
 ```
 
 Ok, now let's bring in the "cleaned" school data (`schools_uil`) that I collected
-and cleaned my UIL analysis. I'll subset the data to include only the same years
+and cleaned in my UIL analysis. I'll subset the data to include only the same years
 found in `schools_tea`--2011 through 2015.
 
 ```{r schools_uil, results = "hide"}
@@ -352,7 +386,7 @@ schools_uil %>%
   teproj::create_kable()
 ```
 
-Now let's review this data set to see if year-to-year correlations also exist with it.
+Now let's try to evaluate whether or not year-to-year correlations also exist with this data set.
 
 Importantly, some choice about how to quantify performance needs to be made.
 As I discussed in
@@ -376,7 +410,7 @@ competition, and, conversely,
 a value of 0 corresponds to the lowest score.)"
 </i>
 
-Aside from this important choice regarding performance evaluation in academic UIL competitions,
+Aside from this decision regarding performance evaluation in academic UIL competitions,
 note that I treat the competition type (`comp`) in `schools_uil`
 as analogous to the `test` variable 
 indicating SAT or ACT score in the `schools_tea` data set.
@@ -459,162 +493,10 @@ We can see that correlations among years do exist, as we would expect.
 The strength of the correlations decrease for years that are farther apart,
 which is also what we might expect.
 
-### Fuzzy Joining
-
-An important thing to keep in mind is that
-the academic UIL data was scraped from a different website--https://www.hpscience.net/ (which 
-was the only site that I found to have the academic competition scores)--than
-that used to collect the SAT and ACT scores here. 
-
-In its raw form,
-the UIL data is much "more unclean" than the data from the TEA website, and some/many
-of the names are inconsistent. In fact, the rigor involved in cleaning the UIL data
-obliged be to completely hide it from the reader in my write-ups on the topic.
-Nonetheless, I was able to eliminate much of the "self-inconsistency" of the UIL data
-and create a suitable data set to use as one of the basis for that long-form analysis.
-
-However, given this context--in which I am comparing data from two
-different data sources--the reality is that there are more than a few differences in the
-names of schools, so joining the data from the two different sources is tricky. 
-To aid in my experimentation
-with "fuzzy joining", I use a function from my `{tetidy}` 
-package--`join_fuzzily()`, which is essentially
-a wrapper for the `stringdist_*_join()` functions provided by the `{fuzzyjoin}` package.
-With this function, I was able to evaluate different values for `max_dist` and
-different join columns to
-make a judgement regarding the quality of joins. I primarily considered counts
-of joined and unjoined rows computed with
-the `summarise_join_stats()` function from my `{tetidy}` package
---to make a decision on how I should join the UIL and
-SAT/ACT school data. [^dry]
-
-[^dry]:
-Check out 
-[my post on the "DRY" principle and its application to `R` packages](https://tonyelhabr.rbind.io/posts/dry-principle-make-a-package/).
-Creating packages for actions that you perform across projects is a real time-saver!
-
-What follows is the results of some of my experimentation.
-
-```{r join_fuzzily}
-# join_fuzzily <-
-#   function(x = NULL,
-#            y = NULL,
-#            mode = "inner",
-#            max_dist = 0,
-#            cols_join = "school",
-#            copy = FALSE,
-#            suffix_x = "_x",
-#            suffix_y = "_y") {
-# 
-#     f <- sprintf("fuzzyjoin::stringdist_%s_join", mode)
-# 
-#     ret <-
-#       teproj::do_call_with(f, list(x = x, y = y, by = cols_join, max_dist = max_dist))
-# 
-#     ret <-
-#       ret %>%
-#       rename_at(vars(ends_with(".x")), funs(gsub("\\.x", suffix_x, .))) %>%
-#       rename_at(vars(ends_with(".y")), funs(gsub("\\.y", suffix_y, .)))
-# 
-#     if(copy) {
-#       cols_join_y <- quo_name(paste0(cols_join, suffix_y))
-#       ret <-
-#         ret %>%
-#         left_join(y %>% mutate(!!!sym(cols_join_y) := !!!sym(cols_join)), by = cols_join)
-#     }
-#     ret
-#   }
-```
-
-```{r summ_schools_joinfuzzy, results = "hide"}
-schools_uil_distinct <-
-  schools_uil %>%
-  distinct(school, city)
-```
-
-```{r summ_schools_joinfuzzy_1, results = "hide"}
-summ_schools_joinfuzzy_1 <-
-  schools_tea %>%
-  tetidy::join_fuzzily(
-    schools_uil_distinct,
-    mode = "full",
-    max_dist = 0,
-    cols_join = c("school"),
-    suffix_x = "_tea",
-    suffix_y = "_uil"
-  ) %>%
-  tetidy::summarise_join_stats(school_uil, school_tea) %>% 
-  select(-x, -y) %>% 
-  gather(metric, value)
-summ_schools_joinfuzzy_1
-```
-
-```{r summ_schools_joinfuzzy_1_show, echo = FALSE}
-summ_schools_joinfuzzy_1 %>% 
-  teproj::create_kable()
-```
-
-```{r summ_schools_joinfuzzy_2, results = "hide"}
-# NOTE: Use a full join to get more informative output from `tetidy::summarise_join_math()`.
-summ_schools_joinfuzzy_2 <-
-  schools_tea %>%
-  unite(school_city, school, city, remove = FALSE) %>%
-  tetidy::join_fuzzily(
-    schools_uil_distinct %>%
-      unite(school_city, school, city, remove = FALSE),
-    mode = "full",
-    max_dist = 0,
-    cols_join = c("school_city"),
-    suffix_x = "_tea",
-    suffix_y = "_uil"
-  ) %>%
-  tetidy::summarise_join_stats(school_city_uil, school_city_tea) %>% 
-  select(-x, -y) %>% 
-  gather(metric, value)
-summ_schools_joinfuzzy_2
-```
-
-```{r summ_schools_joinfuzzy_2_show, echo = FALSE}
-summ_schools_joinfuzzy_2 %>% 
-  teproj::create_kable()
-```
-
-```{r schools_join_old, results = "hide", include = FALSE, eval = FALSE}
-schools_join <-
-  schools_tea %>%
-  unite(school_city, school, city, remove = FALSE) %>%
-  tetidy::join_fuzzily(
-    schools_uil_distinct %>%
-      unite(school_city, school, city, remove = FALSE),
-    mode = "inner",
-    max_dist = 0,
-    cols_join = c("school_city"),
-    suffix_x = "_tea",
-    suffix_y = "_uil"
-  ) %>% 
-  select(-matches("school_city")) %>% 
-  # NOTE: Do this to remove some rows that are recorded twice in the original data.
-  # Duplicates may be due to same school-city combination for two different districts.
-  group_by_at(vars(matches("test|year|school|county|city"))) %>% 
-  summarise_all(funs(max(., na.rm = TRUE))) %>% 
-  ungroup() %>% 
-  mutate_at(vars(matches("math|reading|writing|english|science|total")),
-            funs(if_else(is.infinite(.), NA_real_, .)))
-schools_join
-```
-
-After some further "offline" experimentation, 
-I came to conclusion that none of these fuzzy join
-attempts was sufficiently adequate for my liking.
-Thus, I decided that I would simply combine the two data sets 
-with an `inner_join()` on
-`school` and  `city` (as well as `year`, to make sure that
-school scores match up properly) with the understanding that many schools end up being excluded
-due to imperfect matching. With data
 
 ### "Final" Correlation Analysis
 
-So, at this point, having decided how to join the data,
+So, at this point,
 I have set myself up to do that which I set out to do--evaluate
 the relationship between the academic UIL competition scores and the national SAT/ACT scores.
 
@@ -719,14 +601,18 @@ While I won't do any kind of rigorous second evaluation here,
 I do want to try to quantify
 the impact of the "missing" data dropped due to mismatched school names.
 If all possible data had been used,
-would the final correlation value increased (or decreased)?
-A direct answer to this question is impossible, but we can evaluate the difference
+would the final correlation value have increased (or decreased) with more (or less) data?
+Although finding direct answer to this question is impossible, we can evaluate the difference
 in the year-to-year
-correlations of scores from the schools that are joined with the
+correlations of scores from the schools that __are joined__ with the
 correlations calculated for 
-all in "unjoined" `schools_tea` and `schools_uil` data sets. If we find
+all in __"unjoined"__ `schools_tea` and `schools_uil` data sets. If we find
 that there are large discrepancies (one way or the other), then we may have some
 reason to believe that the `r cor_join` number found above is misleading.
+
+To perform this task, I create a couple of intermediary data sets,
+as well as some functions.
+
 
 ```{r schools_postjoin_math_tidy}
 schools_postjoin_math_tidy <-
@@ -797,6 +683,8 @@ schools_math_cors_byyear_diffs <-
   mutate(cor_diff = cor_join - cor_unjoin)
 ```
 
+Ok, enough of the data munging--let's review the results!
+
 ```{r schools_math_cors_byyear_diffs_wide, results = "hide"}
 schools_math_cors_byyear_diffs_wide <-
   schools_math_cors_byyear_diffs %>% 
@@ -862,10 +750,10 @@ teproj::export_ext_png(
 
 Note that the correlations in the joined data are a bit "stronger"--in the sense that they 
 are more positive--among the TEA
-SAT/ACT-related data, although not in any kind of magnificent way. 
+SAT/ACT data, although not in any kind of magnificent way. 
 Additionally, the differences for the UIL data are trivial.
 Thus, we might say that the additional data that could have possibly increased (or decreased)
-the correlation value found--`r cor_join`--would not have changed much at all.
+the singular correlation value found--`r cor_join`--would not have changed much at all.
 
 ```{r schools_tea_eda, include = FALSE, eval = FALSE}
 # ## Bonus Data Exploration
@@ -895,4 +783,20 @@ So, my initial inclination
 Texas high school academic competition scores and standardized test scores (for math, between 2011 and 2015).
 And, with that question answered,
 I intend to explore this rich data set in other ways in future blog posts.
+
+```{r save, include = FALSE}
+# path_save <- file.path(config$dir_data, "01.RData")
+# session::save.session(file = path_save)
+vars_all <- ls()
+vars_keep <-
+  vars_all %>% 
+  str_subset("config$import")
+vars_rm <- setdiff(vars_all, vars_keep)
+rm(list = vars_rm)
+teproj::export_ext_rdata(
+  "01.RData",
+  export = config$export_data,
+  dir = config$dir_data
+)
+```
 

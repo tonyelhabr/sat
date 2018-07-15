@@ -1,0 +1,196 @@
+---
+title: ""
+author: "Tony"
+date: "July 11, 2018"
+output:
+  html_document:
+    toc: true
+---
+
+```{r setup, include = FALSE}
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+knitr::opts_chunk$set(
+  echo = TRUE,
+  cache = TRUE,
+  include = TRUE,
+  fig.align = "center",
+  results = "asis",
+  fig.width = 6,
+  fig.height = 6,
+  # out.width = 6,
+  # out.height = 6,
+  warning = FALSE,
+  message = FALSE
+)
+options(scipen = 1, digits = 2)
+```
+
+```{r load, include = FALSE}
+paths_load <-
+  list.files(
+    "data",
+    pattern = "01.*RData",
+    recursive = FALSE,
+    full.names = TRUE
+  )
+invisible(sapply(paths_load, load))
+```
+
+
+### Fuzzy Joining
+
+An important thing to keep in mind is that
+the academic UIL data was scraped from a different website--https://www.hpscience.net/ (which 
+was the only site that I found to have the academic competition scores)--than
+that used to collect the SAT and ACT scores here. 
+
+In its raw form,
+the UIL data is much "more unclean" than the data from the TEA website, and some/many
+of the names are inconsistent. In fact, the rigor involved in cleaning the UIL data
+obliged be to completely hide it from the reader in my write-ups on the topic.
+Nonetheless, I was able to eliminate much of the "self-inconsistency" of the UIL data
+and create a suitable data set to use as one of the basis for that long-form analysis.
+
+However, given this context--in which I am comparing data from two
+different data sources--the reality is that there are more than a few differences in the
+names of schools, so joining the data from the two different sources is tricky. 
+To aid in my experimentation
+with "fuzzy joining", I use a function from my `{tetidy}` 
+package--`join_fuzzily()`, which is essentially
+a wrapper for the `stringdist_*_join()` functions provided by the `{fuzzyjoin}` package.
+With this function, I was able to evaluate different values for `max_dist` and
+different join columns to
+make a judgement regarding the quality of joins.
+
+I primarily considered counts
+of joined and unjoined rows computed with
+the `summarise_join_stats()` function from my `{tetidy}` package
+--to make a decision on how I should join the UIL and
+SAT/ACT school data. [^dry]
+
+[^dry]:
+Check out 
+[my post on the "DRY" principle and its application to `R` packages](https://tonyelhabr.rbind.io/posts/dry-principle-make-a-package/).
+Creating packages for actions that you perform across projects is a real time-saver!
+
+
+What follows is the results of some of my experimentation.
+
+```{r join_fuzzily}
+# join_fuzzily <-
+#   function(x = NULL,
+#            y = NULL,
+#            mode = "inner",
+#            max_dist = 0,
+#            cols_join = "school",
+#            copy = FALSE,
+#            suffix_x = "_x",
+#            suffix_y = "_y") {
+# 
+#     f <- sprintf("fuzzyjoin::stringdist_%s_join", mode)
+# 
+#     ret <-
+#       teproj::do_call_with(f, list(x = x, y = y, by = cols_join, max_dist = max_dist))
+# 
+#     ret <-
+#       ret %>%
+#       rename_at(vars(ends_with(".x")), funs(gsub("\\.x", suffix_x, .))) %>%
+#       rename_at(vars(ends_with(".y")), funs(gsub("\\.y", suffix_y, .)))
+# 
+#     if(copy) {
+#       cols_join_y <- quo_name(paste0(cols_join, suffix_y))
+#       ret <-
+#         ret %>%
+#         left_join(y %>% mutate(!!!sym(cols_join_y) := !!!sym(cols_join)), by = cols_join)
+#     }
+#     ret
+#   }
+```
+
+```{r summ_schools_joinfuzzy, results = "hide"}
+schools_uil_distinct <-
+  schools_uil %>%
+  distinct(school, city)
+```
+
+```{r summ_schools_joinfuzzy_1, results = "hide"}
+summ_schools_joinfuzzy_1 <-
+  schools_tea %>%
+  tetidy::join_fuzzily(
+    schools_uil_distinct,
+    mode = "full",
+    max_dist = 0,
+    cols_join = c("school"),
+    suffix_x = "_tea",
+    suffix_y = "_uil"
+  ) %>%
+  tetidy::summarise_join_stats(school_uil, school_tea) %>% 
+  select(-x, -y) %>% 
+  gather(metric, value)
+summ_schools_joinfuzzy_1
+```
+
+```{r summ_schools_joinfuzzy_1_show, echo = FALSE}
+summ_schools_joinfuzzy_1 %>% 
+  teproj::create_kable()
+```
+
+```{r summ_schools_joinfuzzy_2, results = "hide"}
+# NOTE: Use a full join to get more informative output from `tetidy::summarise_join_math()`.
+summ_schools_joinfuzzy_2 <-
+  schools_tea %>%
+  unite(school_city, school, city, remove = FALSE) %>%
+  tetidy::join_fuzzily(
+    schools_uil_distinct %>%
+      unite(school_city, school, city, remove = FALSE),
+    mode = "full",
+    max_dist = 0,
+    cols_join = c("school_city"),
+    suffix_x = "_tea",
+    suffix_y = "_uil"
+  ) %>%
+  tetidy::summarise_join_stats(school_city_uil, school_city_tea) %>% 
+  select(-x, -y) %>% 
+  gather(metric, value)
+summ_schools_joinfuzzy_2
+```
+
+```{r summ_schools_joinfuzzy_2_show, echo = FALSE}
+summ_schools_joinfuzzy_2 %>% 
+  teproj::create_kable()
+```
+
+
+```{r schools_join_old, results = "hide", include = FALSE, eval = FALSE}
+schools_join <-
+  schools_tea %>%
+  unite(school_city, school, city, remove = FALSE) %>%
+  tetidy::join_fuzzily(
+    schools_uil_distinct %>%
+      unite(school_city, school, city, remove = FALSE),
+    mode = "inner",
+    max_dist = 0,
+    cols_join = c("school_city"),
+    suffix_x = "_tea",
+    suffix_y = "_uil"
+  ) %>% 
+  select(-matches("school_city")) %>% 
+  # NOTE: Do this to remove some rows that are recorded twice in the original data.
+  # Duplicates may be due to same school-city combination for two different districts.
+  group_by_at(vars(matches("test|year|school|county|city"))) %>% 
+  summarise_all(funs(max(., na.rm = TRUE))) %>% 
+  ungroup() %>% 
+  mutate_at(vars(matches("math|reading|writing|english|science|total")),
+            funs(if_else(is.infinite(.), NA_real_, .)))
+schools_join
+```
+
+After some further "offline" experimentation, 
+I came to conclusion that none of these fuzzy join
+attempts was sufficiently adequate for my liking.
+Thus, I decided that I would simply combine the two data sets 
+with an `inner_join()` on
+`school` and  `city` (as well as `year`, to make sure that
+school scores match up properly) with the understanding that many schools end up being excluded
+due to imperfect matching.
+
