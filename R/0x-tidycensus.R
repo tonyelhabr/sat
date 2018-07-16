@@ -7,8 +7,8 @@ library("teplot")
 library("tidycensus")
 
 census_api_key("7380a49e1b5fca4d8782d49d5bb80be02025abd7", install = TRUE)
-v2 <- load_variables(2016, "sf3", cache = TRUE)
-v2 <- load_variables(2016, "acs5", cache = TRUE)
+v1 <- load_variables(2016, "sf3", cache = TRUE)
+# v2 <- load_variables(2016, "acs5", cache = TRUE)
 View(v2)
 
 acs_tx <-

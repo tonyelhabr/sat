@@ -11,7 +11,8 @@ output:
 knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
 knitr::opts_chunk$set(
   echo = TRUE,
-  cache = TRUE,
+  # cache = TRUE,
+  cache = FALSE,
   include = TRUE,
   fig.align = "center",
   results = "asis",
@@ -33,6 +34,7 @@ config <-
     export_viz = TRUE,
     dir_viz = "figs",
     download = FALSE,
+    path_schools_uil = file.path("data", "schools_uil.csv"),
     viz_footer = "By: Tony ElHabr."
   )
 ```
@@ -154,7 +156,7 @@ Finally, for the intersted reader,
 there are some details regarding the code implementation that I document in
 comments (both for explaining actions for myself and for the reader).
 
-```{r import_tea_data_funcs, results = "hide", eval = FALSE}
+```{r import_tea_data_funcs, results = "hide"}
 import_tea_data <-
   function(path = NULL, rgx_grp = NULL) {
     ret <-
@@ -225,7 +227,6 @@ schools_tea <-
   urls_tea %>%
   import_tea_data_cleanly(grp_rgx = "All Students")
 schools_tea
-
 ```
 
 ```{r schools_tea_debug, include = FALSE, eval = FALSE}
@@ -375,7 +376,7 @@ found in `schools_tea`--2011 through 2015.
 
 ```{r schools_uil, results = "hide"}
 schools_uil <-
-  file.path("data", "schools_uil.csv") %>% 
+  config$path_schools_uil %>% 
   readr::read_csv() %>% 
   filter(year >= 2011, year <= 2015)
 schools_uil
@@ -785,18 +786,15 @@ And, with that question answered,
 I intend to explore this rich data set in other ways in future blog posts.
 
 ```{r save, include = FALSE}
-# path_save <- file.path(config$dir_data, "01.RData")
-# session::save.session(file = path_save)
-vars_all <- ls()
-vars_keep <-
-  vars_all %>% 
-  str_subset("config$import")
-vars_rm <- setdiff(vars_all, vars_keep)
-rm(list = vars_rm)
-teproj::export_ext_rdata(
-  "01.RData",
-  export = config$export_data,
-  dir = config$dir_data
-)
+if(config$export_data) {
+  vars_all <- ls()
+  vars_keep <-
+    vars_all %>% 
+    str_subset("^config$|^import|^schools_tea$|^schools_uil$")
+  vars_rm <- setdiff(vars_all, vars_keep)
+  rm(list = vars_rm)
+  path_save <-
+    file.path(config$dir_data, "01.RData")
+  save.image(file = path_save)
+}
 ```
-
