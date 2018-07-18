@@ -33,7 +33,7 @@ config <-
     dir_data = "data",
     export_viz = TRUE,
     dir_viz = "figs",
-    download = FALSE,
+    eval_slow = FALSE,
     path_schools_uil = file.path("data", "schools_uil.csv"),
     viz_footer = "By: Tony ElHabr."
   )
@@ -94,8 +94,8 @@ urls_tea <-
 urls_tea
 ```
 
-```{r create_path_dl_tea}
-create_path_dl_tea <-
+```{r create_path_tea}
+create_path_tea <-
   function(url_suffix = NULL, dir = "data-raw", ext = "csv") {
     if(!dir.exists(dir)) {
        dir.create(dir)
@@ -107,7 +107,7 @@ create_path_dl_tea <-
   }
 ```
 
-```{r urls_tea_dl, eval = FALSE}
+```{r urls_tea_dl, eval = config$eval_slow}
 # NOTE(s):
 # + `urls_tea_dl` is actually the same as `url_tea` because `purrr::walk()` returns its first argument.
 # + `mode = "wb"` is important! Otherwise, the downloaded files have empty lines every other line
@@ -117,7 +117,7 @@ urls_tea_dl <-
   walk(
     ~download.file(
       url = paste0("https://tea.texas.gov/", .x),
-      destfile = create_path_dl_tea(url_suffix = .x),
+      destfile = create_path_tea(url_suffix = .x),
       mode = "wb"
     )
   )
@@ -132,7 +132,7 @@ where I explore this data set in other ways.
 One relatively significant choice that I make here is to only include the data
 for the school-wide level (via the `"All Students"` filtering criteria),
 although data for different demographics within each school is provided.
-The other data set that I am evaluating--the academic UIL data--
+The other data set that I am evaluating---the academic UIL data---
 does not have demographci-specific information, so I want to treat
 the two set as "equally" as possible.
 
@@ -148,7 +148,7 @@ To eliminate duplicate columns representing the same underlying "thing".
 I don't distinguish the `math` and `reading` section scores for each test
 in separate columns, I rename the ACT's `compos` score to `total`, following
 the convention used for the SAT's cumulative score.
-The other sections--`writing` for the SAT and `english` and `science` for the ACT--
+The other sections---`writing` for the SAT and `english` and `science` for the ACT---
 are not really analogous to sections in the other test, so they are filled with `NA`s
 appropriately.
 
@@ -167,29 +167,30 @@ import_tea_data <-
     if(!is.null(rgx_grp)) {
       ret <-
         ret %>%
-        filter(group %>% str_detect(rgp_rgx))
+        filter(group %>% str_detect(rgx_grp))
     }
     ret <-
       ret %>%
       select(
         matches(
-          "name$|math|reading|writing|total|english|science|compos"
+          "^group$|name$|math|reading|writing|total|english|science|compos"
         )
       )
     ret
   }
 
 import_tea_data_cleanly <-
-  function(urls = NULL, ...) {
+  function(urls = NULL, rgx_grp = NULL, ...) {
+
     ret <-
       urls %>%
-      create_path_dl_tea() %>%
+      create_path_tea(...) %>%
       tibble(path = .) %>%
       mutate(
         test = stringr::str_extract(path, "([Ss][Aa][Tt])|([Aa][Cc][Tt])") %>% toupper(),
         year = stringr::str_extract(path, "[:digit:]+") %>% as.integer()
       ) %>%
-      mutate(contents = purrr::map(path, ~import_tea_data(.x, ...))) %>%
+      mutate(contents = purrr::map(path, ~import_tea_data(.x, rgx_grp = rgx_grp))) %>%
       unnest() %>%
       # NOTE: No longer need this columns(s) any more.
       select(-path) %>%
@@ -222,10 +223,10 @@ import_tea_data_cleanly <-
   }
 ```
 
-```{r schools_tea, results = "hide", eval = FALSE}
+```{r schools_tea, results = "hide", eval = config$eval_slow}
 schools_tea <-
   urls_tea %>%
-  import_tea_data_cleanly(grp_rgx = "All Students")
+  import_tea_data_cleanly(rgx_grp = "All Students")
 schools_tea
 ```
 
@@ -266,10 +267,10 @@ schools_tea %>%
 
 ### EDA: Year-to-Year Correlations
 
-First, before evaluating the primary concern at hand--the relationship between
+First, before evaluating the primary concern at hand---the relationship between
 the academic UIL scores
 and the SAT/ACT scores (available in the `schools_tea` data
-created above)--I want to verify that
+created above)---I want to verify that
 there is some non-trivial relationship among the scores for a given school on a given
 test across years. (I would be surprised if this were not shown to be true.)
 
@@ -372,7 +373,7 @@ teproj::export_ext_png(
 
 Ok, now let's bring in the "cleaned" school data (`schools_uil`) that I collected
 and cleaned in my UIL analysis. I'll subset the data to include only the same years
-found in `schools_tea`--2011 through 2015.
+found in `schools_tea`---2011 through 2015.
 
 ```{r schools_uil, results = "hide"}
 schools_uil <-
@@ -394,7 +395,7 @@ As I discussed in
 [my long-form series of posts exploring the UIL academic data](https://tonyelhabr.rbind.io/posts/analysis-texas-high-school-academics-intro/),
 the evaluation of performance is somewhat subjective. Should we use
 number of times a school advanced to the next level of competition in a given year?
-(Note that there are three competition levels--`District`, `Region`, and `State`.)
+(Note that there are three competition levels---`District`, `Region`, and `State`.)
 What about the number the number of other schools it "defeated" in head-to-head competitions?
 In that separate analysis, I made the choice to use the percentile rank (`prnk`) of the school's placings
 across all competition levels for a given competition type (`comp`). 
@@ -403,7 +404,7 @@ a school's quality of performance (where a higher value indicates better perform
 As I stated there when explaining
 my choice to use percent rank for identifying "dominant" individual",
 <i>
-"I choose to use percent rank--which is a always a value between 0 and 1--because
+"I choose to use percent rank---which is a always a value between 0 and 1---because
 it inherently accounts for the
 wide range of number of competitors across all competitions. 
 (For this context, a percent rank of 1 corresponds to the highest score in a given
@@ -417,7 +418,7 @@ as analogous to the `test` variable
 indicating SAT or ACT score in the `schools_tea` data set.
 For those who have not read through my UIL analysis, note that scores for
 five different competition types
-was collected--`Calculator Applications`, `Computer Science`, `Mathematics`, `Number Sense`, and `Science`.
+was collected---`Calculator Applications`, `Computer Science`, `Mathematics`, `Number Sense`, and `Science`.
 
 
 ```{r schools_uil_cors_byyear, results = "hide"}
@@ -498,14 +499,14 @@ which is also what we might expect.
 ### "Final" Correlation Analysis
 
 So, at this point,
-I have set myself up to do that which I set out to do--evaluate
+I have set myself up to do that which I set out to do---evaluate
 the relationship between the academic UIL competition scores and the national SAT/ACT scores.
 
 In order to put the two sets of data on "equal grounds",
 I only evaluate math scores.
 In particular, I filter `comp` in the UIL data to just the
-mathematically-based competitions--`Calculator Applications`,
-`Mathematics`, and `Number Sense`--excluding `Science` and `Computer Science`. And,
+mathematically-based competitions---`Calculator Applications`,
+`Mathematics`, and `Number Sense`---excluding `Science` and `Computer Science`. And,
 for the SAT/ACT data, I select only the `math` score, which
 is available fore both tests, excluding
 the `total` and `reading` scores also available for each and the 
@@ -589,7 +590,7 @@ cor_join <-
   pull(value)
 ```
 
-So, this correlation value--`r cor_join`--seems fairly low. At face value, it certainly does
+So, this correlation value---`r cor_join`---seems fairly low. At face value, it certainly does
 not provide any basis to claim that schools that do well in the academic UIL
 competitions also do well with SAT/ACT tests.
 However, perhaps if I used  a different methodology, the result would be different.
@@ -684,7 +685,7 @@ schools_math_cors_byyear_diffs <-
   mutate(cor_diff = cor_join - cor_unjoin)
 ```
 
-Ok, enough of the data munging--let's review the results!
+Ok, enough of the data munging---let's review the results!
 
 ```{r schools_math_cors_byyear_diffs_wide, results = "hide"}
 schools_math_cors_byyear_diffs_wide <-
@@ -749,19 +750,19 @@ teproj::export_ext_png(
 )
 ```
 
-Note that the correlations in the joined data are a bit "stronger"--in the sense that they 
-are more positive--among the TEA
+Note that the correlations in the joined data are a bit "stronger"---in the sense that they 
+are more positive---among the TEA
 SAT/ACT data, although not in any kind of magnificent way. 
 Additionally, the differences for the UIL data are trivial.
 Thus, we might say that the additional data that could have possibly increased (or decreased)
-the singular correlation value found--`r cor_join`--would not have changed much at all.
+the singular correlation value found---`r cor_join`---would not have changed much at all.
 
 ```{r schools_tea_eda, include = FALSE, eval = FALSE}
 # ## Bonus Data Exploration
 # 
 # As a final "aside" to the focus of this post, I thought it would be interesting
 # (maybe only to me) to compare the SAT and ACT scores of my 
-# high school--`SAMUEL CLEMENS` in the TEA data--with our primary rival--`BYRON P STEELE II`.
+# high school---`SAMUEL CLEMENS` in the TEA data---with our primary rival---`BYRON P STEELE II`.
 # (After all, I have made the effort to extract and clean this data, so I would
 # be foolish not to explore any questions that I have in mind.)
 # schools_tea %>%
@@ -770,7 +771,7 @@ the singular correlation value found--`r cor_join`--would not have changed much 
 #   filter(str_detect(school, "CLEMENS|STEELE II")) %>%
 #   spread(year, total)
 # Even though their football team may have been better than ours while I was attending
-# high school--which is a big deal in Texas--I can say that our school 
+# high school---which is a big deal in Texas---I can say that our school 
 # was better (marginally) according to a simple comparison of scores on these tests.
 # That may not be saying a lot to someone with no ties to this setting, but
 # it sparks a bit of pride in me!
@@ -780,17 +781,17 @@ the singular correlation value found--`r cor_join`--would not have changed much 
 ## Conclusion
 
 So, my initial inclination
-[in my analysis of academic UIL competitions](https://tonyelhabr.rbind.io/posts/analysis-texas-high-school-academics-intro/)) seems correct--there is no significant relationship between
+[in my analysis of academic UIL competitions](https://tonyelhabr.rbind.io/posts/analysis-texas-high-school-academics-intro/)) seems correct---there is no significant relationship between
 Texas high school academic competition scores and standardized test scores (for math, between 2011 and 2015).
 And, with that question answered,
 I intend to explore this rich data set in other ways in future blog posts.
 
 ```{r save, include = FALSE}
-if(config$export_data) {
+if(FALSE) {
   vars_all <- ls()
   vars_keep <-
     vars_all %>% 
-    str_subset("^config$|^import|^schools_tea$|^schools_uil$")
+    str_subset("^config$|^urls_tea$|^create_path_tea$|^import|^schools_tea$|^schools_uil$")
   vars_rm <- setdiff(vars_all, vars_keep)
   rm(list = vars_rm)
   path_save <-
