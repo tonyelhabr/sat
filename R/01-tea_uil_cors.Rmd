@@ -27,6 +27,7 @@ options(scipen = 1, digits = 2)
 ```
 
 ```{r config, include = FALSE}
+# NOTE TO SELF: Set export logicals to FALSE for blog post.
 config <-
   list(
     export_data = TRUE,
@@ -107,7 +108,7 @@ create_path_tea <-
   }
 ```
 
-```{r urls_tea_dl, eval = config$eval_slow}
+```{r urls_tea_dl, eval = FALSE}
 # NOTE(s):
 # + `urls_tea_dl` is actually the same as `url_tea` because `purrr::walk()` returns its first argument.
 # + `mode = "wb"` is important! Otherwise, the downloaded files have empty lines every other line
@@ -223,7 +224,7 @@ import_tea_data_cleanly <-
   }
 ```
 
-```{r schools_tea, results = "hide", eval = config$eval_slow}
+```{r schools_tea, results = "hide", eval = FALSE}
 schools_tea <-
   urls_tea %>%
   import_tea_data_cleanly(rgx_grp = "All Students")
@@ -325,8 +326,7 @@ visualize_cors_byyear <-
   }
 ```
 
-
-```{r viz_schools_tea_cors, echo = FALSE, fig.width = 8, fig.height = 8}
+```{r viz_schools_tea_cors, include = FALSE, fig.show = "hide"}
 viz_schools_tea_cors_byyear <-
   schools_tea_cors_byyear %>%
   filter(year2 <= year1) %>% 
@@ -354,6 +354,10 @@ viz_schools_tea_cors_byyear <-
       config$viz_footer
     )
   )
+viz_schools_tea_cors_byyear
+```
+
+```{r viz_schools_tea_cors_byyear_show, echo = FALSE, fig.width = 8, fig.height = 8}
 viz_schools_tea_cors_byyear
 ```
 
@@ -446,7 +450,7 @@ schools_uil_cors_byyear %>%
   teproj::create_kable()
 ```
 
-```{r viz_schools_uil_cors_byyear, echo = FALSE, fig.width = 8, fig.height = 8}
+```{r viz_schools_uil_cors_byyear, include = FALSE, fig.show = "hide"}
 viz_schools_uil_cors_byyear <-
   schools_uil_cors_byyear %>% 
   filter(year2 <= year1) %>% 
@@ -479,6 +483,11 @@ viz_schools_uil_cors_byyear <-
   )
 viz_schools_uil_cors_byyear
 ```
+
+```{r viz_schools_uil_cors_byyear_show, echo = FALSE, fig.width = 8, fig.height = 8}
+viz_schools_uil_cors_byyear
+```
+
 
 ```{r viz_schools_uil_cors_export, include = FALSE}
 teproj::export_ext_png(
@@ -703,7 +712,7 @@ schools_math_cors_byyear_diffs_wide %>%
 ```
 
 
-```{r viz_schools_math_cors_byyear_diffs, echo = FALSE, fig.width = 8, fig.height = 8}
+```{r viz_schools_math_cors_byyear_diffs, include = FALSE, fig.show = "hide"}
 viz_schools_math_cors_byyear_diffs <-
   schools_math_cors_byyear_diffs %>%
   filter(year2 <= year1) %>% 
@@ -736,6 +745,10 @@ viz_schools_math_cors_byyear_diffs <-
       config$viz_footer
       )
   )
+viz_schools_math_cors_byyear_diffs
+```
+
+```{r viz_schools_math_cors_byyear_diffs_show, echo = FALSE, fig.width = 8, fig.height = 8}
 viz_schools_math_cors_byyear_diffs
 ```
 
@@ -786,16 +799,11 @@ Texas high school academic competition scores and standardized test scores (for 
 And, with that question answered,
 I intend to explore this rich data set in other ways in future blog posts.
 
+```{r path_save}
+path_save <-
+  file.path(config$dir_data, "tea_uil_cors.RData")
+```
+
 ```{r save, include = FALSE}
-if(FALSE) {
-  vars_all <- ls()
-  vars_keep <-
-    vars_all %>% 
-    str_subset("^config$|^urls_tea$|^create_path_tea$|^import|^schools_tea$|^schools_uil$")
-  vars_rm <- setdiff(vars_all, vars_keep)
-  rm(list = vars_rm)
-  path_save <-
-    file.path(config$dir_data, "01.RData")
-  save.image(file = path_save)
-}
+save.image(file = path_save)
 ```

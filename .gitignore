@@ -5,6 +5,9 @@
 **Thumbs.db
 data-raw/
 **.cache/
-**.RData
 **.rdb
 **.rdx
+**.dpf
+**.prj
+**.shp
+**.shx

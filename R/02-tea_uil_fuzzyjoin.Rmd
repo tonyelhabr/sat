@@ -31,19 +31,16 @@ options(scipen = 1, digits = 2)
 
 ```{r load, include = FALSE}
 path_load <-
-  list.files(
-    "data",
-    pattern = "01.*RData",
-    recursive = FALSE,
-    full.names = TRUE
-  )
-sapply(path_load, load, .GlobalEnv)
+  file.path("data", "tea_uil_cors.RData")
+load(path_load)
 library("tidyverse")
 ```
 
 ## Introduction
 
-As a follow-up to a previous post about correlations between Texas high school
+As a follow-up to 
+[a previous post]((https://tonyelhabr.rbind.io/posts/correlations-texas-high-school-academics/)
+about correlations between Texas high school
 academic UIL competition scores and SAT/ACT scores, I wanted explore
 some of the "alternatives" to joining the two data sets---which come from different
 sources. In that post, I simply perform a an `inner_join()` using the `school`
@@ -94,15 +91,6 @@ What follows is the results of some of my experimentation. Of course, let's firs
 have a look at the data sets that we're working with. (See my other posts
 to see how I created these data sets.)
 
-```{r schools_tea, results = "hide"}
-schools_tea
-```
-
-```{r schools_tea_show_old, echo = FALSE, eval = FALSE}
-schools_tea %>% 
-  teproj::create_kable()
-```
-
 ```{r create_dt, include = FALSE}
 library("DT")
 create_dt <-
@@ -112,7 +100,16 @@ create_dt <-
   }
 ```
 
+```{r schools_tea, results = "hide"}
+schools_tea
+```
+
 ```{r schools_tea_show, echo = FALSE}
+schools_tea %>% 
+  teproj::create_kable()
+```
+
+```{r schools_tea_show_dt, echo = FALSE, eval = FALSE}
 schools_tea %>% 
   create_dt()
 ```
@@ -122,12 +119,12 @@ schools_tea %>%
 schools_uil
 ```
 
-```{r schools_uil_show_old, echo = FALSE, eval = FALSE}
+```{r schools_uil_show, echo = FALSE}
 schools_uil %>% 
   teproj::create_kable()
 ```
 
-```{r schools_uil_show, echo = FALSE}
+```{r schools_uil_show_dt, echo = FALSE, eval = FALSE}
 schools_uil %>% 
   create_dt()
 ```
@@ -162,7 +159,7 @@ summ_schools_joinfuzzy_1 <-
 summ_schools_joinfuzzy_1
 ```
 
-```{r prettify_join_fuzzy, echo = FALSE}
+```{r prettify_join_fuzzy, include = FALSE}
 create_kable_joinfuzzy <-
   function(data = NULL) {
     data %>%
@@ -282,13 +279,12 @@ in those schools that are mismatched. (i.e. The un-matched
 schools are just as ikely to be superior/inferior academically relative to all other
 schools as those that are matched.)
 
-Something that I did not consider here but is certainly worthy of exploration
-is neural network text classificaton. With this approach, I could quantify
+Something that I did not consider here but is certainly worthy of exploration is
+[neural network text classificaton](https://machinelearnings.co/text-classification-using-neural-networks-f5cd7b8765c6).
+With this approach, I could quantify
 the probability that one string is "equivalent" to another, and choose
 matches with the highest probabilities for any given string. I have a feeling
 that this kind of approach would be more successful, although it
 does not seem as easy to implement. (I may come back and visit
 this idea in a future post.)
-
-
 
