@@ -15,7 +15,7 @@ knitr::opts_chunk$set(
   cache = FALSE,
   include = TRUE,
   fig.align = "center",
-  results = "asis",
+  # results = "asis",
   fig.width = 6,
   fig.height = 6,
   # out.width = 6,
@@ -36,8 +36,18 @@ config <-
     dir_viz = "figs",
     eval_slow = FALSE,
     path_schools_uil = file.path("data", "schools_uil.csv"),
-    viz_footer = "By: Tony ElHabr."
+    viz_footer = "By Tony ElHabr."
   )
+```
+
+```{r path_save, include = FALSE}
+path_save <-
+  file.path(config$dir_data, "tea_uil_cors.RData")
+```
+
+```{r load, include = FALSE}
+# NOTE TO SELF: Load only for blog post.
+# load(path_save)
 ```
 
 ## Introduction
@@ -799,11 +809,8 @@ Texas high school academic competition scores and standardized test scores (for 
 And, with that question answered,
 I intend to explore this rich data set in other ways in future blog posts.
 
-```{r path_save}
-path_save <-
-  file.path(config$dir_data, "tea_uil_cors.RData")
-```
 
 ```{r save, include = FALSE}
-save.image(file = path_save)
+# NOTE TO SELF: Do not save with blog post or if calling rmarkdown::render().
+# save.image(file = path_save)
 ```

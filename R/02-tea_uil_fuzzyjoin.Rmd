@@ -18,7 +18,7 @@ knitr::opts_chunk$set(
   cache = FALSE,
   include = TRUE,
   fig.align = "center",
-  results = "asis",
+  # results = "asis",
   fig.width = 6,
   fig.height = 6,
   # out.width = 6,

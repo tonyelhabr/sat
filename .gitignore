@@ -7,7 +7,7 @@ data-raw/
 **.cache/
 **.rdb
 **.rdx
-**.dpf
+**.dbf
 **.prj
 **.shp
 **.shx

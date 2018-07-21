@@ -27,6 +27,16 @@ knitr::opts_chunk$set(
 options(scipen = 1, digits = 2)
 ```
 
+```{r path_save}
+path_save <-
+  file.path("data", "tea_bubble_grid.RData")
+```
+
+```{r load, include = FALSE}
+# NOTE TO SELF: Load only for blog post.
+# load(path_save)
+```
+
 Two awesome things inspired this post:
 
 + [`{ggplot2}`'s version 3.0 release](https://www.tidyverse.org/articles/2018/07/ggplot2-3-0-0/)
@@ -302,17 +312,6 @@ tx_border <-
   as_tibble()
 ```
 
-
-```{r path_save}
-path_save <-
-  file.path("data", "tea_bubble_grid.RData")
-```
-
-```{r load}
-# NOTE TO SELF: Uncomment this and comment out shapefile imports for blog post.
-# load(file = path_save)
-```
-
 I'll skip over the data collection and munging steps and just show the cleaned data
 that I'm using. (See the GitHub repository for the full code.)
 
@@ -516,7 +515,7 @@ viz_schools_chlr <-
 viz_schools_chlr
 ```
 
-```{r viz_schools_grid_export}
+```{r viz_schools_chlr_export}
 teproj::export_ext_png(
   viz_schools_chlr,
   export = config$export_viz,
@@ -529,7 +528,7 @@ teproj::export_ext_png(
 
 This chlorepath actually isn't so bad, but I think I still prefer the bubble grid.
 
-```{r path_save}
-# rm("config")
+```{r save}
+# NOTE TO SELF: Do not save with blog post or if calling rmarkdown::render().
 save.image(path_save)
 ```

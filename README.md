@@ -17,7 +17,7 @@ paths <-
   )
 dir_output <- "output"
 purrr::map(
-  paths[1],
+  paths,
   ~rmarkdown::render(
     .x,
     output_dir = dir_output, 
