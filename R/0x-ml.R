@@ -1,18 +1,9 @@
 
-paths_load <-
-  list.files(
-    "data",
-    pattern = "*RData",
-    recursive = FALSE,
-    full.names = TRUE
-  )
-sapply(paths_load, load, .GlobalEnv)
-
-library("tidyverse")
 schools_tea_all <-
-  urls_tea %>%
-  import_tea_data_cleanly()
-schools_tea_all
+  teproj::import_ext_csv(
+    schools_tea_all,
+    dir = "data"
+  )
 
 rgx_subtest <- "math|reading|writing|english|science|total"
 schools_tea_all %>%
@@ -27,6 +18,30 @@ schools_tea_all %>%
   count(is.na(total), sort = TRUE)
 schools_tea_all %>% drop_na(total)
 
+schools_tea_all %>%
+  drop_na(total) %>%
+  count(group, sort = TRUE)
+
+schools_tea_tidy <-
+  schools_tea_all %>%
+  gather(subtest, value, matches(rgx_subtest)) %>%
+  filter(!is.na(value)) %>%
+  filter(subtest != "total")
+
+fmla_bygroup <- formula(value ~ group)
+fit_sat_bygroup <-
+  schools_tea_tidy %>%
+  filter(test == "SAT") %>%
+  lm(fmla_bygroup, data = .)
+
+# options(scipen = 1, digits = 2)
+terms_sat_bygroup <-
+  fit_sat_bygroup %>%
+  broom::tidy() %>%
+  teml::add_signif_col()
+terms_sat_bygroup
+
+# gganimate stuff ----
 scores_byyear <-
   schools_tea_all %>%
   gather(subtest, value, matches(rgx_subtest)) %>%

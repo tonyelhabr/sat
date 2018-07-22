@@ -737,7 +737,7 @@ viz_schools_math_cors_byyear_diffs <-
   facet_wrap( ~ source) +
   labs(title = str_wrap(
     paste0(
-      "Difference in Year-to-Year Correlation of UIL Academic Math Scores and SAT/ACT Math Scores",
+      "Difference in Year-to-Year Correlation of UIL Academic Math Scores and SAT/ACT Math Scores ",
       "for Pre- vs. Post-Joined Data")
     , 80),
     caption =
