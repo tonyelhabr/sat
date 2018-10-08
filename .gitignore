@@ -3,12 +3,6 @@
 .RData
 .Ruserdata
 **Thumbs.db
-data-raw/
 **.cache/
 **.rdb
 **.rdx
-**.dbf
-**.prj
-**.shp
-**.shx
-**.pdf
